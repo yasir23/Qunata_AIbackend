@@ -1,0 +1,136 @@
+{
+  "description": "Example MCP server configurations for Reddit and YouTube data extraction",
+  "configurations": {
+    "reddit_only": {
+      "description": "Configuration for Reddit data extraction only",
+      "mcp_config": {
+        "url": "http://localhost:8001/mcp",
+        "tools": ["get_reddit_posts", "get_reddit_comments", "search_reddit"],
+        "auth_required": false
+      }
+    },
+    "youtube_only": {
+      "description": "Configuration for YouTube data extraction only", 
+      "mcp_config": {
+        "url": "http://localhost:8002/mcp",
+        "tools": ["get_youtube_comments", "search_youtube_videos", "get_video_info"],
+        "auth_required": false
+      }
+    },
+    "reddit_and_youtube": {
+      "description": "Configuration for both Reddit and YouTube data extraction",
+      "note": "This configuration uses MultiServerMCPClient format for multiple servers",
+      "mcp_server_config": {
+        "reddit": {
+          "url": "http://localhost:8001/mcp",
+          "transport": "streamable_http"
+        },
+        "youtube": {
+          "url": "http://localhost:8002/mcp", 
+          "transport": "streamable_http"
+        }
+      }
+    }
+  },
+  "usage_examples": {
+    "langgraph_studio": {
+      "description": "How to configure MCP servers in LangGraph Studio",
+      "steps": [
+        "1. Start the MCP servers using the startup scripts",
+        "2. In LangGraph Studio, go to Configuration settings",
+        "3. Set mcp_config.url to the appropriate server URL",
+        "4. Optionally specify which tools to include in mcp_config.tools array",
+        "5. Test the configuration by running a research query"
+      ]
+    },
+    "programmatic_usage": {
+      "description": "How to use MCP servers programmatically",
+      "example_code": {
+        "python": "from langchain_mcp_adapters.client import MultiServerMCPClient\n\n# Configure multiple MCP servers\nclient = MultiServerMCPClient({\n    'reddit': {\n        'url': 'http://localhost:8001/mcp',\n        'transport': 'streamable_http'\n    },\n    'youtube': {\n        'url': 'http://localhost:8002/mcp',\n        'transport': 'streamable_http'\n    }\n})\n\n# Get all available tools\ntools = await client.get_tools()\n\n# Use with LangGraph agent\nfrom langgraph.prebuilt import create_react_agent\nagent = create_react_agent('anthropic:claude-3-5-sonnet-latest', tools)"
+      }
+    }
+  },
+  "server_details": {
+    "reddit_server": {
+      "port": 8001,
+      "transport": "streamable-http",
+      "tools": [
+        {
+          "name": "get_reddit_posts",
+          "description": "Fetch posts from a specific subreddit",
+          "parameters": {
+            "subreddit": "Name of the subreddit (without r/ prefix)",
+            "limit": "Number of posts to fetch (default: 10, max: 100)",
+            "sort": "Sort method - 'hot', 'new', 'top', 'rising' (default: 'hot')"
+          }
+        },
+        {
+          "name": "get_reddit_comments", 
+          "description": "Fetch comments from a specific Reddit post",
+          "parameters": {
+            "post_url": "Full URL or Reddit permalink to the post",
+            "limit": "Number of top-level comments to fetch (default: 20, max: 100)"
+          }
+        },
+        {
+          "name": "search_reddit",
+          "description": "Search Reddit content for specific queries",
+          "parameters": {
+            "query": "Search query string",
+            "subreddit": "Optional subreddit to limit search to (without r/ prefix)",
+            "limit": "Number of results to return (default: 10, max: 50)"
+          }
+        }
+      ]
+    },
+    "youtube_server": {
+      "port": 8002,
+      "transport": "streamable-http", 
+      "tools": [
+        {
+          "name": "get_youtube_comments",
+          "description": "Fetch comments from a YouTube video",
+          "parameters": {
+            "video_id": "YouTube video ID or full YouTube URL",
+            "limit": "Number of comments to fetch (default: 50, max: 100)"
+          }
+        },
+        {
+          "name": "search_youtube_videos",
+          "description": "Search for YouTube videos",
+          "parameters": {
+            "query": "Search query string",
+            "limit": "Number of results to return (default: 10, max: 50)"
+          }
+        },
+        {
+          "name": "get_video_info",
+          "description": "Get detailed information about a YouTube video",
+          "parameters": {
+            "video_id": "YouTube video ID or full YouTube URL"
+          }
+        }
+      ]
+    }
+  },
+  "troubleshooting": {
+    "common_issues": [
+      {
+        "issue": "Server connection failed",
+        "solution": "Ensure the MCP servers are running on the correct ports (8001 for Reddit, 8002 for YouTube)"
+      },
+      {
+        "issue": "API authentication errors",
+        "solution": "Check that all required environment variables are set in .env file"
+      },
+      {
+        "issue": "Rate limiting errors",
+        "solution": "Reduce the limit parameters in tool calls or implement delays between requests"
+      },
+      {
+        "issue": "Tool not found errors",
+        "solution": "Verify the tool names match exactly and the servers are properly configured"
+      }
+    ]
+  }
+}
