@@ -492,3 +492,79 @@ def get_tavily_api_key(config: RunnableConfig):
         return api_keys.get("TAVILY_API_KEY")
     else:
         return os.getenv("TAVILY_API_KEY")
+
+
+##########################
+# Tool Loading Utils
+##########################
+
+async def _load_mcp_tools(
+    config: RunnableConfig,
+    existing_tool_names: set[str],
+) -> list[BaseTool]:
+    """Load MCP tools from configured servers."""
+    configurable = Configuration.from_runnable_config(config)
+    if not configurable.mcp_config or not configurable.mcp_config.url:
+        return []
+
+    # Convert single MCPConfig to MultiServerMCPClient format
+    mcp_server_config = {
+        "default": {
+            "url": configurable.mcp_config.url,
+            "transport": "streamable_http",
+        }
+    }
+    
+    try:
+        client = MultiServerMCPClient(mcp_server_config)
+        mcp_tools = await client.get_tools()
+        filtered_mcp_tools: list[BaseTool] = []
+        
+        for tool in mcp_tools:
+            # Skip tools with conflicting names
+            if tool.name in existing_tool_names:
+                warnings.warn(
+                    f"Trying to add MCP tool with a name {tool.name} that is already in use - this tool will be ignored."
+                )
+                continue
+
+            # Filter tools if specific tools are configured
+            if configurable.mcp_config.tools and tool.name not in configurable.mcp_config.tools:
+                continue
+
+            filtered_mcp_tools.append(tool)
+
+        return filtered_mcp_tools
+    except Exception as e:
+        warnings.warn(f"Failed to load MCP tools: {e}")
+        return []
+
+
+async def get_all_tools(config: RunnableConfig) -> list[BaseTool]:
+    """Get all available tools based on configuration.
+    
+    This function loads search tools (like tavily_search) and MCP tools
+    based on the provided configuration.
+    
+    Args:
+        config: RunnableConfig containing the configuration settings
+        
+    Returns:
+        List of BaseTool instances available for use
+    """
+    configurable = Configuration.from_runnable_config(config)
+    tools: list[BaseTool] = []
+    
+    # Add search tools based on configuration
+    if configurable.search_api == SearchAPI.TAVILY:
+        tools.append(tavily_search)
+    # Note: Other search APIs can be added here as needed
+    
+    # Get existing tool names to avoid conflicts
+    existing_tool_names = {tool.name for tool in tools}
+    
+    # Load MCP tools if configured
+    mcp_tools = await _load_mcp_tools(config, existing_tool_names)
+    tools.extend(mcp_tools)
+    
+    return tools

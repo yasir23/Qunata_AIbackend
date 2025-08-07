@@ -42,6 +42,8 @@ dependencies = [
     "ipykernel>=6.29.5",
     "supabase>=2.15.3",
     "mcp>=1.9.4",
+    "praw>=7.7.1",
+    "google-api-python-client>=2.100.0",
 ]
 
 [project.optional-dependencies]
@@ -85,3 +87,5 @@ lint.ignore = [
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+
