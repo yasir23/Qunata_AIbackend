@@ -48,6 +48,16 @@ from ..middleware.usage_tracker import (
 )
 from ..database.models import SubscriptionTierEnum
 
+# Import subscription management
+from ..payment.subscription_manager import (
+    SubscriptionManager,
+    get_user_subscription_info,
+    check_user_feature_access,
+    get_user_concurrent_research_limit,
+    check_github_mcp_access,
+    get_subscription_tier_config
+)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -592,6 +602,7 @@ if __name__ == "__main__":
         log_level="info" if not DEBUG else "debug",
         access_log=True,
     )
+
 
 
 
