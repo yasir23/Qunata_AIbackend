@@ -31,6 +31,11 @@ from .auth_endpoints import auth_router, limiter as auth_limiter
 from ..payment.webhook_handler import webhook_router
 from ..security.auth import supabase
 
+# Import LangGraph components
+from ..open_deep_research.deep_researcher import deep_researcher
+from ..open_deep_research.configuration import Configuration
+from ..open_deep_research.state import AgentInputState
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -328,3 +333,4 @@ if __name__ == "__main__":
         log_level="info" if not DEBUG else "debug",
         access_log=True,
     )
+
