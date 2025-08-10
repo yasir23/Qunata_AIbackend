@@ -37,7 +37,9 @@ from open_deep_research.utils import (
     anthropic_websearch_called,
     remove_up_to_last_ai_message,
     get_api_key_for_model,
-    get_notes_from_tool_calls
+    get_notes_from_tool_calls,
+    get_research_context,
+    get_rag_engine
 )
 
 # Initialize a configurable model that we will use throughout the agent
@@ -64,7 +66,7 @@ async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Comman
         return Command(goto="write_research_brief", update={"messages": [AIMessage(content=response.verification)]})
 
 
-async def write_research_brief(state: AgentState, config: RunnableConfig)-> Command[Literal["research_supervisor"]]:
+async def write_research_brief(state: AgentState, config: RunnableConfig)-> Command[Literal["retrieve_rag_context"]]:
     configurable = Configuration.from_runnable_config(config)
     research_model_config = {
         "model": configurable.research_model,
@@ -78,21 +80,115 @@ async def write_research_brief(state: AgentState, config: RunnableConfig)-> Comm
         date=get_today_str()
     ))])
     return Command(
-        goto="research_supervisor", 
+        goto="retrieve_rag_context", 
         update={
             "research_brief": response.research_brief,
-            "supervisor_messages": {
-                "type": "override",
-                "value": [
-                    SystemMessage(content=lead_researcher_prompt.format(
-                        date=get_today_str(),
-                        max_concurrent_research_units=configurable.max_concurrent_research_units
-                    )),
-                    HumanMessage(content=response.research_brief)
-                ]
-            }
         }
     )
+
+
+async def retrieve_rag_context(state: AgentState, config: RunnableConfig) -> Command[Literal["research_supervisor"]]:
+    """
+    Retrieve relevant context from RAG system before conducting research.
+    
+    This step searches the vector database for relevant historical research,
+    GitHub issues, and social media insights to inform the research process.
+    """
+    research_brief = state.get("research_brief", "")
+    
+    try:
+        # Get RAG context for the research brief
+        rag_context = await get_research_context(research_brief)
+        
+        # Extract context information
+        context_items = rag_context.get("context_items", [])
+        context_summary = rag_context.get("context_summary", "No relevant context found.")
+        key_topics = rag_context.get("key_topics", [])
+        recommendations = rag_context.get("recommendations", [])
+        
+        # Format context for the supervisor
+        formatted_context = ""
+        if context_items:
+            formatted_context += f"\n\n## 🧠 RELEVANT HISTORICAL CONTEXT\n\n"
+            formatted_context += f"**Context Summary:** {context_summary}\n\n"
+            
+            if key_topics:
+                formatted_context += f"**Key Topics Identified:** {', '.join(key_topics)}\n\n"
+            
+            formatted_context += f"**Relevant Context from Previous Research:**\n\n"
+            
+            for i, item in enumerate(context_items[:5], 1):  # Show top 5 context items
+                metadata = item.get('metadata', {})
+                content = item.get('content', '')
+                similarity = item.get('similarity_score', 0)
+                
+                source = metadata.get('source', 'unknown')
+                item_type = metadata.get('type', 'unknown')
+                title = metadata.get('title', 'No title')
+                
+                # Truncate content for readability
+                truncated_content = content[:300] + "..." if len(content) > 300 else content
+                
+                formatted_context += f"**Context {i}** (Similarity: {similarity:.2f})\n"
+                formatted_context += f"- **Source:** {source.title()} ({item_type})\n"
+                formatted_context += f"- **Title:** {title}\n"
+                formatted_context += f"- **Content:** {truncated_content}\n\n"
+            
+            if recommendations:
+                formatted_context += f"**Research Recommendations:**\n"
+                for rec in recommendations:
+                    formatted_context += f"- {rec}\n"
+                formatted_context += "\n"
+        
+        # Enhanced research brief with context
+        enhanced_research_brief = research_brief
+        if formatted_context:
+            enhanced_research_brief += formatted_context
+            enhanced_research_brief += "\n---\n\n**Please use the above context to inform your research strategy and avoid duplicating previous work. Focus on areas not covered in the historical context or build upon existing insights.**"
+        
+        configurable = Configuration.from_runnable_config(config)
+        
+        return Command(
+            goto="research_supervisor",
+            update={
+                "research_brief": enhanced_research_brief,
+                "rag_context": rag_context,
+                "supervisor_messages": {
+                    "type": "override",
+                    "value": [
+                        SystemMessage(content=lead_researcher_prompt.format(
+                            date=get_today_str(),
+                            max_concurrent_research_units=configurable.max_concurrent_research_units
+                        )),
+                        HumanMessage(content=enhanced_research_brief)
+                    ]
+                }
+            }
+        )
+        
+    except Exception as e:
+        # If RAG context retrieval fails, continue with original research brief
+        print(f"Warning: RAG context retrieval failed: {e}")
+        
+        configurable = Configuration.from_runnable_config(config)
+        
+        return Command(
+            goto="research_supervisor",
+            update={
+                "research_brief": research_brief,
+                "rag_context": {"error": str(e), "context_items": []},
+                "supervisor_messages": {
+                    "type": "override",
+                    "value": [
+                        SystemMessage(content=lead_researcher_prompt.format(
+                            date=get_today_str(),
+                            max_concurrent_research_units=configurable.max_concurrent_research_units
+                        )),
+                        HumanMessage(content=research_brief)
+                    ]
+                }
+            }
+        )
 
 
 async def supervisor(state: SupervisorState, config: RunnableConfig) -> Command[Literal["supervisor_tools"]]:
@@ -359,10 +455,15 @@ async def final_report_generation(state: AgentState, config: RunnableConfig):
 deep_researcher_builder = StateGraph(AgentState, input=AgentInputState, config_schema=Configuration)
 deep_researcher_builder.add_node("clarify_with_user", clarify_with_user)
 deep_researcher_builder.add_node("write_research_brief", write_research_brief)
+deep_researcher_builder.add_node("retrieve_rag_context", retrieve_rag_context)
 deep_researcher_builder.add_node("research_supervisor", supervisor_subgraph)
 deep_researcher_builder.add_node("final_report_generation", final_report_generation)
 deep_researcher_builder.add_edge(START, "clarify_with_user")
+deep_researcher_builder.add_edge("retrieve_rag_context", "research_supervisor")
 deep_researcher_builder.add_edge("research_supervisor", "final_report_generation")
 deep_researcher_builder.add_edge("final_report_generation", END)
 
 deep_researcher = deep_researcher_builder.compile()
+
+
+
