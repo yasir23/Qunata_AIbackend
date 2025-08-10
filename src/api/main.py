@@ -25,6 +25,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from supabase import Client, create_client
 import uvicorn
+import asyncio
 
 # Import routers from existing components
 from .auth_endpoints import auth_router, limiter as auth_limiter
@@ -428,5 +429,6 @@ if __name__ == "__main__":
         log_level="info" if not DEBUG else "debug",
         access_log=True,
     )
+
 
 
