@@ -48,6 +48,8 @@ dependencies = [
     "fastapi>=0.100.0",
     "uvicorn>=0.20.0",
     "slowapi>=0.1.9",
+    "langchain-openai>=0.1.0",
+    "numpy>=1.24.0",
 ]
 
 [project.optional-dependencies]
@@ -91,6 +93,7 @@ lint.ignore = [
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
 
 
 
