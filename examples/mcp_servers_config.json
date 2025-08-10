@@ -1,5 +1,5 @@
 {
-  "description": "Example MCP server configurations for Reddit and YouTube data extraction",
+  "description": "Example MCP server configurations for Reddit, YouTube, and GitHub data extraction",
   "configurations": {
     "reddit_only": {
       "description": "Configuration for Reddit data extraction only",
@@ -17,6 +17,14 @@
         "auth_required": false
       }
     },
+    "github_only": {
+      "description": "Configuration for GitHub data extraction only",
+      "mcp_config": {
+        "url": "http://localhost:8003/mcp",
+        "tools": ["get_repository_issues", "get_issue_comments", "search_repositories", "get_repository_info", "search_issues"],
+        "auth_required": false
+      }
+    },
     "reddit_and_youtube": {
       "description": "Configuration for both Reddit and YouTube data extraction",
       "note": "This configuration uses MultiServerMCPClient format for multiple servers",
@@ -27,6 +35,24 @@
         },
         "youtube": {
           "url": "http://localhost:8002/mcp", 
+          "transport": "streamable_http"
+        }
+      }
+    },
+    "all_servers": {
+      "description": "Configuration for Reddit, YouTube, and GitHub data extraction",
+      "note": "This configuration uses MultiServerMCPClient format for all three servers",
+      "mcp_server_config": {
+        "reddit": {
+          "url": "http://localhost:8001/mcp",
+          "transport": "streamable_http"
+        },
+        "youtube": {
+          "url": "http://localhost:8002/mcp", 
+          "transport": "streamable_http"
+        },
+        "github": {
+          "url": "http://localhost:8003/mcp",
           "transport": "streamable_http"
         }
       }
@@ -134,3 +160,4 @@
     ]
   }
 }
+
