@@ -47,6 +47,7 @@ dependencies = [
     "stripe>=8.0.0",
     "fastapi>=0.100.0",
     "uvicorn>=0.20.0",
+    "slowapi>=0.1.9",
 ]
 
 [project.optional-dependencies]
@@ -90,6 +91,7 @@ lint.ignore = [
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
 
 
 
