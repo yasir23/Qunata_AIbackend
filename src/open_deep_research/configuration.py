@@ -423,16 +423,54 @@ class Configuration(BaseModel):
         try:
             # Get subscription information
             subscription_info = await get_user_subscription_info(self.user_id)
+            tier_limits = self._get_tier_based_limits(subscription_info.tier)
             
-            # Apply limits
-            max_allowed = subscription_info.limits.concurrent_research_units
-            if self.max_concurrent_research_units > max_allowed:
-                self.max_concurrent_research_units = max_allowed
-                logger.info(f"Applied subscription limit: concurrent_units={max_allowed}")
+            # Apply concurrent research units limit
+            max_allowed_concurrent = subscription_info.limits.concurrent_research_units
+            if self.max_concurrent_research_units > max_allowed_concurrent:
+                self.max_concurrent_research_units = max_allowed_concurrent
+                logger.info(f"Applied concurrent research units limit: {max_allowed_concurrent}")
+            
+            # Apply researcher iterations limit
+            max_allowed_iterations = tier_limits["max_researcher_iterations"]
+            if self.max_researcher_iterations > max_allowed_iterations:
+                self.max_researcher_iterations = max_allowed_iterations
+                logger.info(f"Applied researcher iterations limit: {max_allowed_iterations}")
+            
+            # Apply tool calls limit
+            max_allowed_tool_calls = tier_limits["max_react_tool_calls"]
+            if self.max_react_tool_calls > max_allowed_tool_calls:
+                self.max_react_tool_calls = max_allowed_tool_calls
+                logger.info(f"Applied tool calls limit: {max_allowed_tool_calls}")
+            
+            # Apply token limits
+            max_allowed_tokens = tier_limits["max_tokens_per_request"]
+            if self.research_model_max_tokens > max_allowed_tokens:
+                self.research_model_max_tokens = max_allowed_tokens
+                logger.info(f"Applied research model token limit: {max_allowed_tokens}")
+            
+            if self.final_report_model_max_tokens > max_allowed_tokens:
+                self.final_report_model_max_tokens = max_allowed_tokens
+                logger.info(f"Applied final report model token limit: {max_allowed_tokens}")
+            
+            if self.compression_model_max_tokens > max_allowed_tokens:
+                self.compression_model_max_tokens = max_allowed_tokens
+                logger.info(f"Applied compression model token limit: {max_allowed_tokens}")
+            
+            if self.summarization_model_max_tokens > max_allowed_tokens:
+                self.summarization_model_max_tokens = max_allowed_tokens
+                logger.info(f"Applied summarization model token limit: {max_allowed_tokens}")
+            
+            # Apply structured output retries limit
+            max_allowed_retries = tier_limits["max_structured_output_retries"]
+            if self.max_structured_output_retries > max_allowed_retries:
+                self.max_structured_output_retries = max_allowed_retries
+                logger.info(f"Applied structured output retries limit: {max_allowed_retries}")
             
             # Update subscription tier
             self.subscription_tier = subscription_info.tier
             
+            logger.info(f"Applied all subscription limits for user {self.user_id} (tier: {subscription_info.tier.value})")
             return self
             
         except Exception as e:
@@ -472,6 +510,7 @@ class Configuration(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+
 
 
 
