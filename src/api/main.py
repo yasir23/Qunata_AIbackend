@@ -61,6 +61,9 @@ from ..payment.subscription_manager import (
 # Import RAG system
 from ..rag.vector_store import VectorStore, SearchResult
 
+# Import configuration system
+from ..open_deep_research.configuration import Configuration
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -1137,6 +1140,7 @@ if __name__ == "__main__":
         log_level="info" if not DEBUG else "debug",
         access_log=True,
     )
+
 
 
 
