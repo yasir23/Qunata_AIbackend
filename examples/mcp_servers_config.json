@@ -72,7 +72,7 @@
     "programmatic_usage": {
       "description": "How to use MCP servers programmatically",
       "example_code": {
-        "python": "from langchain_mcp_adapters.client import MultiServerMCPClient\n\n# Configure multiple MCP servers\nclient = MultiServerMCPClient({\n    'reddit': {\n        'url': 'http://localhost:8001/mcp',\n        'transport': 'streamable_http'\n    },\n    'youtube': {\n        'url': 'http://localhost:8002/mcp',\n        'transport': 'streamable_http'\n    }\n})\n\n# Get all available tools\ntools = await client.get_tools()\n\n# Use with LangGraph agent\nfrom langgraph.prebuilt import create_react_agent\nagent = create_react_agent('anthropic:claude-3-5-sonnet-latest', tools)"
+        "python": "from langchain_mcp_adapters.client import MultiServerMCPClient\n\n# Configure multiple MCP servers\nclient = MultiServerMCPClient({\n    'reddit': {\n        'url': 'http://localhost:8001/mcp',\n        'transport': 'streamable_http'\n    },\n    'youtube': {\n        'url': 'http://localhost:8002/mcp',\n        'transport': 'streamable_http'\n    },\n    'github': {\n        'url': 'http://localhost:8003/mcp',\n        'transport': 'streamable_http'\n    }\n})\n\n# Get all available tools\ntools = await client.get_tools()\n\n# Use with LangGraph agent\nfrom langgraph.prebuilt import create_react_agent\nagent = create_react_agent('anthropic:claude-3-5-sonnet-latest', tools)"
       }
     }
   },
@@ -160,4 +160,5 @@
     ]
   }
 }
+
 
