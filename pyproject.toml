@@ -50,6 +50,8 @@ dependencies = [
     "stripe>=8.0.0",
     "redis>=5.0.0",
     "chromadb>=0.4.22",
+    "psutil>=5.9.0",
+    "aiohttp>=3.8.0",
 ]
 
 [project.optional-dependencies]
@@ -93,6 +95,7 @@ lint.ignore = [
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
 
 
 
