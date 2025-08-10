@@ -548,6 +548,180 @@ async def check_mcp_server_access(
             detail=f"Failed to check MCP server access: {str(e)}"
         )
 
+# Subscription management endpoints
+@app.get("/subscription/info", tags=["subscription"])
+@limiter.limit("60/minute")
+async def get_subscription_info(
+    request: Request,
+    authorization: Optional[str] = None
+):
+    """
+    Get comprehensive subscription information for the authenticated user.
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header required"
+        )
+    
+    try:
+        # Extract user ID from authorization header
+        middleware = UsageTrackingMiddleware(None)
+        user_id = await middleware._extract_user_id(request)
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token"
+            )
+        
+        # Get subscription information
+        subscription_info = await get_user_subscription_info(user_id)
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "subscription": {
+                "tier": subscription_info.tier.value,
+                "status": subscription_info.status.value,
+                "subscription_id": subscription_info.subscription_id,
+                "customer_id": subscription_info.customer_id,
+                "current_period_start": subscription_info.current_period_start.isoformat() if subscription_info.current_period_start else None,
+                "current_period_end": subscription_info.current_period_end.isoformat() if subscription_info.current_period_end else None,
+                "cancel_at_period_end": subscription_info.cancel_at_period_end
+            },
+            "features": subscription_info.features.model_dump(),
+            "limits": subscription_info.limits.model_dump(),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Subscription info error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve subscription information: {str(e)}"
+        )
+
+@app.get("/subscription/tiers", tags=["subscription"])
+@limiter.limit("30/minute")
+async def get_subscription_tiers():
+    """
+    Get information about all available subscription tiers.
+    """
+    try:
+        manager = SubscriptionManager()
+        tier_comparison = await manager.get_tier_comparison()
+        
+        return {
+            "status": "success",
+            "tiers": tier_comparison,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Subscription tiers error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve subscription tiers: {str(e)}"
+        )
+
+@app.get("/subscription/features/{feature}", tags=["subscription"])
+@limiter.limit("60/minute")
+async def check_feature_access(
+    feature: str,
+    request: Request,
+    authorization: Optional[str] = None
+):
+    """
+    Check if the authenticated user has access to a specific feature.
+    
+    Available features: research_requests, api_access, priority_support, 
+    advanced_rag, custom_integrations, dedicated_support, github_mcp_access
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header required"
+        )
+    
+    try:
+        # Extract user ID from authorization header
+        middleware = UsageTrackingMiddleware(None)
+        user_id = await middleware._extract_user_id(request)
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token"
+            )
+        
+        # Check feature access
+        has_access = await check_user_feature_access(user_id, feature)
+        subscription_info = await get_user_subscription_info(user_id)
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "feature": feature,
+            "has_access": has_access,
+            "subscription_tier": subscription_info.tier.value,
+            "all_features": subscription_info.features.model_dump(),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Feature access check error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check feature access: {str(e)}"
+        )
+
+@app.get("/subscription/limits/concurrent", tags=["subscription"])
+@limiter.limit("60/minute")
+async def get_concurrent_research_limit(
+    request: Request,
+    authorization: Optional[str] = None
+):
+    """
+    Get the concurrent research units limit for the authenticated user.
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header required"
+        )
+    
+    try:
+        # Extract user ID from authorization header
+        middleware = UsageTrackingMiddleware(None)
+        user_id = await middleware._extract_user_id(request)
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token"
+            )
+        
+        # Get concurrent research limit
+        limit = await get_user_concurrent_research_limit(user_id)
+        subscription_info = await get_user_subscription_info(user_id)
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "concurrent_research_limit": limit,
+            "subscription_tier": subscription_info.tier.value,
+            "all_limits": subscription_info.limits.model_dump(),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Concurrent limit error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve concurrent research limit: {str(e)}"
+        )
+
 # Include routers
 app.include_router(auth_router)
 app.include_router(webhook_router)
@@ -602,6 +776,7 @@ if __name__ == "__main__":
         log_level="info" if not DEBUG else "debug",
         access_log=True,
     )
+
 
 
 
