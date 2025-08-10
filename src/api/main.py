@@ -37,6 +37,9 @@ from ..open_deep_research.deep_researcher import deep_researcher
 from ..open_deep_research.configuration import Configuration
 from ..open_deep_research.state import AgentInputState
 
+# Import usage tracking middleware
+from ..middleware.usage_tracker import UsageTrackingMiddleware, get_user_subscription_limits
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -429,6 +432,7 @@ if __name__ == "__main__":
         log_level="info" if not DEBUG else "debug",
         access_log=True,
     )
+
 
 
 
