@@ -41,9 +41,15 @@ dependencies = [
     "langchain-google-genai>=2.1.5",
     "ipykernel>=6.29.5",
     "supabase>=2.15.3",
+    "firebase-admin>=6.5.0",
+    "google-auth>=2.29.0",
+    "google-cloud-firestore>=2.16.0",
     "mcp>=1.9.4",
     "praw>=7.7.1",
     "google-api-python-client>=2.100.0",
+    "stripe>=8.0.0",
+    "redis>=5.0.0",
+    "chromadb>=0.4.22",
 ]
 
 [project.optional-dependencies]
@@ -87,5 +93,6 @@ lint.ignore = [
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
 
 
