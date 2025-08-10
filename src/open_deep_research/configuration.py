@@ -209,6 +209,83 @@ class Configuration(BaseModel):
             }
         }
     )
+    
+    # MCP Management Configuration
+    mcp_auto_start: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Whether to automatically start MCP servers on system startup"
+            }
+        }
+    )
+    mcp_health_check_interval: int = Field(
+        default=30,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 30,
+                "min": 10,
+                "max": 300,
+                "description": "Health check interval for MCP servers in seconds"
+            }
+        }
+    )
+    mcp_max_retries: int = Field(
+        default=3,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 3,
+                "min": 1,
+                "max": 10,
+                "description": "Maximum retry attempts for failed MCP server operations"
+            }
+        }
+    )
+    mcp_load_balancing_enabled: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Whether to enable load balancing for MCP servers"
+            }
+        }
+    )
+    mcp_load_balancing_strategy: str = Field(
+        default="round_robin",
+        metadata={
+            "x_oap_ui_config": {
+                "type": "select",
+                "default": "round_robin",
+                "options": ["round_robin", "least_connections", "weighted_round_robin", "response_time", "random"],
+                "description": "Load balancing strategy for MCP server requests"
+            }
+        }
+    )
+    mcp_circuit_breaker_enabled: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Whether to enable circuit breaker for MCP servers"
+            }
+        }
+    )
+    mcp_monitoring_enabled: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Whether to enable comprehensive MCP server monitoring"
+            }
+        }
+    )
 
 
     @classmethod
