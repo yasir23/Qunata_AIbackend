@@ -1086,6 +1086,201 @@ async def delete_research_document(
             detail=f"Failed to delete research document: {str(e)}"
         )
 
+# Configuration endpoints
+@app.get("/config/limits", tags=["configuration"])
+@limiter.limit("60/minute")
+async def get_configuration_limits(
+    request: Request,
+    authorization: Optional[str] = None
+):
+    """
+    Get configuration limits based on user's subscription tier.
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header required"
+        )
+    
+    try:
+        # Extract user ID from authorization header
+        middleware = UsageTrackingMiddleware(None)
+        user_id = await middleware._extract_user_id(request)
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token"
+            )
+        
+        # Create subscription-aware configuration
+        config = await Configuration.from_user_subscription(user_id)
+        effective_limits = await config.get_effective_limits()
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "configuration_limits": effective_limits,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Configuration limits error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve configuration limits: {str(e)}"
+        )
+
+@app.get("/config/tiers", tags=["configuration"])
+@limiter.limit("30/minute")
+async def get_configuration_tier_comparison():
+    """
+    Get comparison of configuration limits across all subscription tiers.
+    """
+    try:
+        tier_comparison = Configuration.get_tier_limits_comparison()
+        
+        return {
+            "status": "success",
+            "tier_limits": tier_comparison,
+            "description": "Configuration limits by subscription tier",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Configuration tiers error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve configuration tiers: {str(e)}"
+        )
+
+@app.post("/config/validate", tags=["configuration"])
+@limiter.limit("30/minute")
+async def validate_configuration(
+    request: Request,
+    max_concurrent_research_units: Optional[int] = None,
+    max_researcher_iterations: Optional[int] = None,
+    max_react_tool_calls: Optional[int] = None,
+    research_model_max_tokens: Optional[int] = None,
+    authorization: Optional[str] = None
+):
+    """
+    Validate configuration parameters against user's subscription limits.
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header required"
+        )
+    
+    try:
+        # Extract user ID from authorization header
+        middleware = UsageTrackingMiddleware(None)
+        user_id = await middleware._extract_user_id(request)
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token"
+            )
+        
+        # Create base configuration
+        config = await Configuration.from_user_subscription(user_id)
+        
+        # Override with provided parameters
+        if max_concurrent_research_units is not None:
+            config.max_concurrent_research_units = max_concurrent_research_units
+        if max_researcher_iterations is not None:
+            config.max_researcher_iterations = max_researcher_iterations
+        if max_react_tool_calls is not None:
+            config.max_react_tool_calls = max_react_tool_calls
+        if research_model_max_tokens is not None:
+            config.research_model_max_tokens = research_model_max_tokens
+        
+        # Validate configuration
+        is_valid = await config.validate_subscription_limits()
+        
+        # Get effective limits for comparison
+        effective_limits = await config.get_effective_limits()
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "validation_result": {
+                "is_valid": is_valid,
+                "requested_config": {
+                    "max_concurrent_research_units": config.max_concurrent_research_units,
+                    "max_researcher_iterations": config.max_researcher_iterations,
+                    "max_react_tool_calls": config.max_react_tool_calls,
+                    "research_model_max_tokens": config.research_model_max_tokens
+                },
+                "effective_limits": effective_limits["effective_limits"] if "effective_limits" in effective_limits else {},
+                "subscription_tier": effective_limits.get("subscription_tier", "unknown")
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Configuration validation error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to validate configuration: {str(e)}"
+        )
+
+@app.get("/config/mcp-access", tags=["configuration"])
+@limiter.limit("60/minute")
+async def get_mcp_server_configuration(
+    request: Request,
+    authorization: Optional[str] = None
+):
+    """
+    Get MCP server access configuration based on user's subscription.
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header required"
+        )
+    
+    try:
+        # Extract user ID from authorization header
+        middleware = UsageTrackingMiddleware(None)
+        user_id = await middleware._extract_user_id(request)
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token"
+            )
+        
+        # Create subscription-aware configuration
+        config = await Configuration.from_user_subscription(user_id)
+        
+        # Check MCP server access
+        mcp_access = {}
+        for server in ["reddit", "youtube", "github"]:
+            mcp_access[server] = await config.check_mcp_server_access(server)
+        
+        # Get subscription info
+        subscription_info = await get_user_subscription_info(user_id)
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "mcp_server_access": mcp_access,
+            "subscription_tier": subscription_info.tier.value,
+            "allowed_servers": subscription_info.features.mcp_servers,
+            "github_mcp_access": subscription_info.features.github_mcp_access,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"MCP configuration error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve MCP configuration: {str(e)}"
+        )
+
 # Include routers
 app.include_router(auth_router)
 app.include_router(webhook_router)
@@ -1140,6 +1335,7 @@ if __name__ == "__main__":
         log_level="info" if not DEBUG else "debug",
         access_log=True,
     )
+
 
 
 
