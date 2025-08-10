@@ -225,6 +225,8 @@ async def test_integration_with_utils():
     
     try:
         # Import the enhanced utils
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent))
         from open_deep_research.utils import get_rag_engine, get_rag_stats, ingest_mcp_data_to_rag
         
         # Test RAG engine initialization
@@ -312,3 +314,4 @@ async def main():
 if __name__ == "__main__":
     success = asyncio.run(main())
     sys.exit(0 if success else 1)
+
