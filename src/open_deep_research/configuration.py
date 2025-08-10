@@ -271,7 +271,126 @@ class Configuration(BaseModel):
             for field_name in field_names
         }
         return cls(**{k: v for k, v in values.items() if v is not None})
+    
+    @classmethod
+    async def from_user_subscription(
+        cls, 
+        user_id: str, 
+        config: Optional[RunnableConfig] = None
+    ) -> "Configuration":
+        """Create a Configuration instance with subscription-based limits."""
+        try:
+            # Get base configuration
+            base_config = cls.from_runnable_config(config)
+            
+            # Get user subscription information
+            subscription_info = await get_user_subscription_info(user_id)
+            
+            # Apply subscription-based limits
+            if base_config.enforce_subscription_limits:
+                # Update concurrent research units based on subscription
+                subscription_limit = subscription_info.limits.concurrent_research_units
+                base_config.max_concurrent_research_units = min(
+                    base_config.max_concurrent_research_units,
+                    subscription_limit
+                )
+                
+                # Set subscription information
+                base_config.user_id = user_id
+                base_config.subscription_tier = subscription_info.tier
+                
+                logger.info(f"Applied subscription limits for user {user_id}: "
+                          f"tier={subscription_info.tier.value}, "
+                          f"concurrent_units={base_config.max_concurrent_research_units}")
+            
+            return base_config
+            
+        except Exception as e:
+            logger.error(f"Error applying subscription limits for user {user_id}: {e}")
+            # Return base configuration on error
+            base_config = cls.from_runnable_config(config)
+            base_config.user_id = user_id
+            return base_config
+    
+    async def validate_subscription_limits(self) -> bool:
+        """Validate that current configuration respects subscription limits."""
+        if not self.enforce_subscription_limits or not self.user_id:
+            return True
+        
+        try:
+            # Get current subscription limits
+            subscription_info = await get_user_subscription_info(self.user_id)
+            
+            # Check concurrent research units limit
+            max_allowed = subscription_info.limits.concurrent_research_units
+            if self.max_concurrent_research_units > max_allowed:
+                logger.warning(f"Configuration exceeds subscription limit: "
+                             f"requested={self.max_concurrent_research_units}, "
+                             f"allowed={max_allowed}")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error validating subscription limits: {e}")
+            return True  # Allow on error to avoid blocking users
+    
+    async def apply_subscription_limits(self) -> "Configuration":
+        """Apply subscription limits to current configuration."""
+        if not self.enforce_subscription_limits or not self.user_id:
+            return self
+        
+        try:
+            # Get subscription information
+            subscription_info = await get_user_subscription_info(self.user_id)
+            
+            # Apply limits
+            max_allowed = subscription_info.limits.concurrent_research_units
+            if self.max_concurrent_research_units > max_allowed:
+                self.max_concurrent_research_units = max_allowed
+                logger.info(f"Applied subscription limit: concurrent_units={max_allowed}")
+            
+            # Update subscription tier
+            self.subscription_tier = subscription_info.tier
+            
+            return self
+            
+        except Exception as e:
+            logger.error(f"Error applying subscription limits: {e}")
+            return self
+    
+    async def check_mcp_server_access(self, server_name: str) -> bool:
+        """Check if user has access to a specific MCP server based on subscription."""
+        if not self.user_id:
+            # Default access for unauthenticated users (Reddit/YouTube only)
+            return server_name.lower() in ["reddit", "youtube"]
+        
+        try:
+            # Check GitHub MCP access specifically
+            if server_name.lower() == "github":
+                return await check_github_mcp_access(self.user_id)
+            
+            # Check general MCP server access
+            subscription_info = await get_user_subscription_info(self.user_id)
+            allowed_servers = subscription_info.features.mcp_servers
+            return server_name.lower() in [s.lower() for s in allowed_servers]
+            
+        except Exception as e:
+            logger.error(f"Error checking MCP server access: {e}")
+            # Default to basic access on error
+            return server_name.lower() in ["reddit", "youtube"]
+    
+    def get_subscription_summary(self) -> dict[str, Any]:
+        """Get summary of subscription-based configuration."""
+        return {
+            "user_id": self.user_id,
+            "subscription_tier": self.subscription_tier.value if self.subscription_tier else "unknown",
+            "enforce_limits": self.enforce_subscription_limits,
+            "max_concurrent_research_units": self.max_concurrent_research_units,
+            "subscription_aware": self.user_id is not None
+        }
 
     class Config:
         arbitrary_types_allowed = True
+
 
