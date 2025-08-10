@@ -76,7 +76,39 @@ class Configuration(BaseModel):
                 "min": 1,
                 "max": 20,
                 "step": 1,
-                "description": "Maximum number of research units to run concurrently. This will allow the researcher to use multiple sub-agents to conduct research. Note: with more concurrency, you may run into rate limits."
+                "description": "Maximum number of research units to run concurrently. This will allow the researcher to use multiple sub-agents to conduct research. Note: with more concurrency, you may run into rate limits. This value is automatically adjusted based on your subscription tier."
+            }
+        }
+    )
+    
+    # Subscription-based configuration fields
+    user_id: Optional[str] = Field(
+        default=None,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "hidden",
+                "description": "User ID for subscription-based configuration"
+            }
+        }
+    )
+    
+    subscription_tier: Optional[SubscriptionTierEnum] = Field(
+        default=None,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "hidden",
+                "description": "User subscription tier"
+            }
+        }
+    )
+    
+    enforce_subscription_limits: bool = Field(
+        default=True,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "boolean",
+                "default": True,
+                "description": "Whether to enforce subscription-based limits on configuration"
             }
         }
     )
@@ -242,3 +274,4 @@ class Configuration(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+
