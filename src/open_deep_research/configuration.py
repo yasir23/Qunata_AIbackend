@@ -499,17 +499,94 @@ class Configuration(BaseModel):
             return server_name.lower() in ["reddit", "youtube"]
     
     def get_subscription_summary(self) -> dict[str, Any]:
-        """Get summary of subscription-based configuration."""
+        """Get comprehensive summary of subscription-based configuration."""
+        tier_limits = {}
+        if self.subscription_tier:
+            tier_limits = self._get_tier_based_limits(self.subscription_tier)
+        
         return {
             "user_id": self.user_id,
             "subscription_tier": self.subscription_tier.value if self.subscription_tier else "unknown",
             "enforce_limits": self.enforce_subscription_limits,
-            "max_concurrent_research_units": self.max_concurrent_research_units,
-            "subscription_aware": self.user_id is not None
+            "subscription_aware": self.user_id is not None,
+            "current_limits": {
+                "max_concurrent_research_units": self.max_concurrent_research_units,
+                "max_researcher_iterations": self.max_researcher_iterations,
+                "max_react_tool_calls": self.max_react_tool_calls,
+                "research_model_max_tokens": self.research_model_max_tokens,
+                "final_report_model_max_tokens": self.final_report_model_max_tokens,
+                "compression_model_max_tokens": self.compression_model_max_tokens,
+                "summarization_model_max_tokens": self.summarization_model_max_tokens,
+                "max_structured_output_retries": self.max_structured_output_retries
+            },
+            "tier_limits": tier_limits,
+            "mcp_config": {
+                "url": self.mcp_config.url if self.mcp_config else None,
+                "tools": self.mcp_config.tools if self.mcp_config else None,
+                "auth_required": self.mcp_config.auth_required if self.mcp_config else None
+            }
+        }
+    
+    async def get_effective_limits(self) -> dict[str, Any]:
+        """Get effective limits after applying subscription restrictions."""
+        if not self.user_id or not self.enforce_subscription_limits:
+            return self.get_subscription_summary()
+        
+        try:
+            # Get subscription information
+            subscription_info = await get_user_subscription_info(self.user_id)
+            tier_limits = self._get_tier_based_limits(subscription_info.tier)
+            
+            # Calculate effective limits (minimum of configured and subscription limits)
+            effective_limits = {
+                "max_concurrent_research_units": min(
+                    self.max_concurrent_research_units,
+                    subscription_info.limits.concurrent_research_units
+                ),
+                "max_researcher_iterations": min(
+                    self.max_researcher_iterations,
+                    tier_limits["max_researcher_iterations"]
+                ),
+                "max_react_tool_calls": min(
+                    self.max_react_tool_calls,
+                    tier_limits["max_react_tool_calls"]
+                ),
+                "max_tokens_per_request": tier_limits["max_tokens_per_request"],
+                "max_structured_output_retries": min(
+                    self.max_structured_output_retries,
+                    tier_limits["max_structured_output_retries"]
+                )
+            }
+            
+            return {
+                "user_id": self.user_id,
+                "subscription_tier": subscription_info.tier.value,
+                "subscription_status": subscription_info.status.value,
+                "enforce_limits": self.enforce_subscription_limits,
+                "effective_limits": effective_limits,
+                "subscription_features": subscription_info.features.model_dump(),
+                "mcp_server_access": {
+                    "allowed_servers": subscription_info.features.mcp_servers,
+                    "github_access": subscription_info.features.github_mcp_access,
+                    "advanced_rag": subscription_info.features.advanced_rag
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting effective limits: {e}")
+            return self.get_subscription_summary()
+    
+    @classmethod
+    def get_tier_limits_comparison(cls) -> dict[str, Any]:
+        """Get comparison of limits across all subscription tiers."""
+        return {
+            tier.value: cls._get_tier_based_limits(tier)
+            for tier in SubscriptionTierEnum
         }
 
     class Config:
         arbitrary_types_allowed = True
+
 
 
 
