@@ -66,7 +66,7 @@ async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Comman
         return Command(goto="write_research_brief", update={"messages": [AIMessage(content=response.verification)]})
 
 
-async def write_research_brief(state: AgentState, config: RunnableConfig)-> Command[Literal["research_supervisor"]]:
+async def write_research_brief(state: AgentState, config: RunnableConfig)-> Command[Literal["retrieve_rag_context"]]:
     configurable = Configuration.from_runnable_config(config)
     research_model_config = {
         "model": configurable.research_model,
@@ -80,19 +80,9 @@ async def write_research_brief(state: AgentState, config: RunnableConfig)-> Comm
         date=get_today_str()
     ))])
     return Command(
-        goto="research_supervisor", 
+        goto="retrieve_rag_context", 
         update={
             "research_brief": response.research_brief,
-            "supervisor_messages": {
-                "type": "override",
-                "value": [
-                    SystemMessage(content=lead_researcher_prompt.format(
-                        date=get_today_str(),
-                        max_concurrent_research_units=configurable.max_concurrent_research_units
-                    )),
-                    HumanMessage(content=response.research_brief)
-                ]
-            }
         }
     )
 
@@ -368,3 +358,4 @@ deep_researcher_builder.add_edge("research_supervisor", "final_report_generation
 deep_researcher_builder.add_edge("final_report_generation", END)
 
 deep_researcher = deep_researcher_builder.compile()
+
