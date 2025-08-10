@@ -2,7 +2,15 @@
 
 <img width="1388" height="298" alt="full_diagram" src="https://github.com/user-attachments/assets/12a2371b-8be2-4219-9b48-90503eb43c69" />
 
-Deep research has broken out as one of the most popular agent applications. This is a simple, configurable, fully open source deep research agent that works across many model providers, search tools, and MCP servers. 
+Deep research has broken out as one of the most popular agent applications. This is a comprehensive, configurable, fully open source deep research agent that works across many model providers, search tools, and MCP servers with integrated payment processing, subscription management, and advanced RAG capabilities.
+
+**🆕 New Features:**
+- **Subscription-Based Access Control**: Free, Pro ($29.99/month), and Enterprise ($99.99/month) tiers
+- **Payment Processing**: Integrated Stripe payment system with webhook handling
+- **Advanced RAG System**: Vector-based document storage and retrieval for enhanced research
+- **Usage Tracking**: Comprehensive API usage monitoring and rate limiting
+- **MCP Server Integration**: Reddit, YouTube, and GitHub (Pro/Enterprise) MCP servers
+- **FastAPI Backend**: Production-ready API with authentication and subscription management
 
 * Read more in our [blog](https://blog.langchain.com/open-deep-research/) 
 * See our [video](https://www.youtube.com/watch?v=agGiWUpxkhg) for a quick overview
@@ -174,3 +182,4 @@ The `src/legacy/` folder contains two earlier implementations that provide alter
 - **MCP Support**: Extensive Model Context Protocol integration
 
 See `src/legacy/legacy.md` for detailed documentation, configuration options, and usage examples for both legacy implementations.
+
