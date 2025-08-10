@@ -388,6 +388,155 @@ async def get_research_status(research_id: str):
         "message": "Research status tracking will be implemented with session management"
     }
 
+# Usage tracking and subscription endpoints
+@app.get("/usage/stats", tags=["usage"])
+@limiter.limit("30/minute")
+async def get_usage_stats(
+    request: Request,
+    time_window: str = "day",
+    authorization: Optional[str] = None
+):
+    """
+    Get current usage statistics for the authenticated user.
+    
+    Time windows: 'hour', 'day'
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header required"
+        )
+    
+    try:
+        # Extract user ID from authorization header
+        middleware = UsageTrackingMiddleware(None)
+        user_id = await middleware._extract_user_id(request)
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token"
+            )
+        
+        # Get usage statistics
+        from ..middleware.usage_tracker import UsageTracker
+        tracker = UsageTracker()
+        
+        stats = await tracker.get_usage_stats(user_id, time_window)
+        subscription_info = await tracker.get_user_subscription_status(user_id)
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "time_window": time_window,
+            "subscription_tier": subscription_info["tier"],
+            "usage_stats": stats,
+            "limits": subscription_info["limits"],
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Usage stats error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve usage statistics: {str(e)}"
+        )
+
+@app.get("/usage/limits", tags=["usage"])
+@limiter.limit("60/minute")
+async def get_usage_limits(
+    request: Request,
+    authorization: Optional[str] = None
+):
+    """
+    Get subscription limits for the authenticated user.
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header required"
+        )
+    
+    try:
+        # Extract user ID from authorization header
+        middleware = UsageTrackingMiddleware(None)
+        user_id = await middleware._extract_user_id(request)
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token"
+            )
+        
+        # Get subscription limits
+        subscription_info = await get_user_subscription_limits(user_id)
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "subscription_tier": subscription_info["tier"],
+            "subscription_status": subscription_info["status"],
+            "limits": subscription_info["limits"],
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Usage limits error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve usage limits: {str(e)}"
+        )
+
+@app.get("/usage/mcp-access/{server_name}", tags=["usage"])
+@limiter.limit("60/minute")
+async def check_mcp_server_access(
+    server_name: str,
+    request: Request,
+    authorization: Optional[str] = None
+):
+    """
+    Check if the authenticated user can access a specific MCP server.
+    
+    Supported servers: reddit, youtube, github
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header required"
+        )
+    
+    try:
+        # Extract user ID from authorization header
+        middleware = UsageTrackingMiddleware(None)
+        user_id = await middleware._extract_user_id(request)
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token"
+            )
+        
+        # Check MCP server access
+        has_access = await check_user_can_access_mcp_server(user_id, server_name)
+        subscription_info = await get_user_subscription_limits(user_id)
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "server_name": server_name,
+            "has_access": has_access,
+            "subscription_tier": subscription_info["tier"],
+            "allowed_servers": subscription_info["limits"].get("mcp_servers", []),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"MCP access check error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check MCP server access: {str(e)}"
+        )
+
 # Include routers
 app.include_router(auth_router)
 app.include_router(webhook_router)
@@ -442,6 +591,7 @@ if __name__ == "__main__":
         log_level="info" if not DEBUG else "debug",
         access_log=True,
     )
+
 
 
 
