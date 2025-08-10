@@ -2,7 +2,23 @@ from pydantic import BaseModel, Field
 from typing import Any, List, Optional
 from langchain_core.runnables import RunnableConfig
 import os
+import asyncio
+import logging
 from enum import Enum
+
+# Import subscription management components
+from ..payment.subscription_manager import (
+    SubscriptionManager,
+    get_user_subscription_info,
+    get_user_concurrent_research_limit,
+    check_github_mcp_access,
+    get_tier_based_concurrent_limit,
+    get_tier_based_mcp_servers
+)
+from ..database.models import SubscriptionTierEnum
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 class SearchAPI(Enum):
     ANTHROPIC = "anthropic"
