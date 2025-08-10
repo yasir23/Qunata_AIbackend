@@ -279,6 +279,101 @@ async def root():
         ]
     }
 
+# Research endpoints for LangGraph integration
+@app.post("/research/start", tags=["research"])
+@limiter.limit("10/minute")
+async def start_research(
+    request: Request,
+    research_input: Dict[str, Any],
+    authorization: Optional[str] = None
+):
+    """
+    Start a new research session using the LangGraph deep researcher.
+    
+    This endpoint integrates with the existing LangGraph functionality
+    and requires authentication.
+    """
+    # Basic authentication check (will be enhanced with proper middleware later)
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header required"
+        )
+    
+    try:
+        # Create configuration from request
+        config = {
+            "configurable": research_input.get("config", {}),
+        }
+        
+        # Create input state
+        input_state = AgentInputState(
+            messages=research_input.get("messages", []),
+            **research_input.get("additional_params", {})
+        )
+        
+        # Start research using LangGraph
+        result = await deep_researcher.ainvoke(
+            input_state,
+            config=config
+        )
+        
+        return {
+            "status": "success",
+            "research_id": result.get("research_id"),
+            "result": result,
+            "message": "Research completed successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Research error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Research failed: {str(e)}"
+        )
+
+@app.get("/research/config", tags=["research"])
+async def get_research_config():
+    """
+    Get the default research configuration schema.
+    
+    This endpoint returns the available configuration options
+    for the LangGraph deep researcher.
+    """
+    try:
+        # Get configuration schema
+        config_schema = Configuration.model_json_schema()
+        
+        return {
+            "status": "success",
+            "config_schema": config_schema,
+            "default_config": Configuration().model_dump(),
+            "description": "Configuration options for the deep researcher"
+        }
+        
+    except Exception as e:
+        logger.error(f"Config retrieval error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve configuration: {str(e)}"
+        )
+
+@app.get("/research/status/{research_id}", tags=["research"])
+async def get_research_status(research_id: str):
+    """
+    Get the status of a research session.
+    
+    This endpoint will be enhanced with proper session tracking
+    in future iterations.
+    """
+    # Placeholder for research status tracking
+    # This will be implemented with proper session management
+    return {
+        "research_id": research_id,
+        "status": "completed",  # Placeholder
+        "message": "Research status tracking will be implemented with session management"
+    }
+
 # Include routers
 app.include_router(auth_router)
 app.include_router(webhook_router)
@@ -333,4 +428,5 @@ if __name__ == "__main__":
         log_level="info" if not DEBUG else "debug",
         access_log=True,
     )
+
 
