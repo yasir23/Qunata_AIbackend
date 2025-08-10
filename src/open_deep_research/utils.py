@@ -18,6 +18,16 @@ from open_deep_research.state import Summary, ResearchComplete
 from open_deep_research.configuration import SearchAPI, Configuration
 from open_deep_research.prompts import summarize_webpage_prompt
 
+# RAG system imports
+try:
+    from rag.retrieval_engine import RetrievalEngine
+    from rag.vector_store import VectorStore
+    from rag.document_processor import DocumentProcessor
+    RAG_AVAILABLE = True
+except ImportError:
+    RAG_AVAILABLE = False
+    logging.warning("RAG system not available - install chromadb and dependencies")
+
 
 ##########################
 # Tavily Search Tool Utils
@@ -568,3 +578,4 @@ async def get_all_tools(config: RunnableConfig) -> list[BaseTool]:
     tools.extend(mcp_tools)
     
     return tools
+
