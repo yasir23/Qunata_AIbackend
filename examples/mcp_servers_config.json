@@ -199,7 +199,7 @@
     "common_issues": [
       {
         "issue": "Server connection failed",
-        "solution": "Ensure the MCP servers are running on the correct ports (8001 for Reddit, 8002 for YouTube)"
+        "solution": "Ensure the MCP servers are running on the correct ports (8001 for Reddit, 8002 for YouTube, 8003 for GitHub)"
       },
       {
         "issue": "API authentication errors",
@@ -216,6 +216,7 @@
     ]
   }
 }
+
 
 
 
