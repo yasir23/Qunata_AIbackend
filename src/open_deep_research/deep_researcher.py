@@ -373,6 +373,18 @@ async def final_report_generation(state: AgentState, config: RunnableConfig):
         )
         try:
             final_report = await configurable_model.with_config(writer_model_config).ainvoke([HumanMessage(content=final_report_prompt)])
+            
+            # Store research results in RAG system if user is authenticated and has access
+            user_id = getattr(configurable, 'user_id', None)
+            if user_id and final_report.content:
+                await store_research_in_rag(
+                    user_id=user_id,
+                    research_brief=state.get("research_brief", ""),
+                    final_report=final_report.content,
+                    findings=findings,
+                    config=config
+                )
+            
             return {
                 "final_report": final_report.content, 
                 "messages": [final_report],
@@ -415,4 +427,5 @@ deep_researcher_builder.add_edge("research_supervisor", "final_report_generation
 deep_researcher_builder.add_edge("final_report_generation", END)
 
 deep_researcher = deep_researcher_builder.compile()
+
 
