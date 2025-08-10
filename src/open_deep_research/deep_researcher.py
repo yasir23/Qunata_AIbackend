@@ -4,10 +4,19 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
 from langgraph.types import Command
 import asyncio
-from typing import Literal
+import logging
+from typing import Literal, Optional
 from open_deep_research.configuration import (
     Configuration, 
 )
+
+# Import RAG system components
+from ..rag.vector_store import VectorStore, SearchResult
+from ..payment.subscription_manager import get_user_subscription_info
+from ..middleware.usage_tracker import record_token_usage
+
+# Configure logging
+logger = logging.getLogger(__name__)
 from open_deep_research.state import (
     AgentState,
     AgentInputState,
