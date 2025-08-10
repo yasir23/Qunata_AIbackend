@@ -499,6 +499,389 @@ def get_rag_stats() -> Dict[str, Any]:
 
 
 ##########################
+# Usage Tracking Integration
+##########################
+
+# Global usage tracker instance
+_usage_tracker = None
+
+def get_usage_tracker() -> Optional['UsageTracker']:
+    """Get or create the global usage tracker instance."""
+    global _usage_tracker
+    if not ANALYTICS_AVAILABLE:
+        return None
+    
+    if _usage_tracker is None:
+        try:
+            # Initialize with Redis if available
+            import redis
+            try:
+                redis_client = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
+                redis_client.ping()  # Test connection
+            except Exception:
+                redis_client = None
+                logging.warning("Redis not available, using in-memory cache for usage tracking")
+            
+            # Initialize Stripe and Firebase integrations if available
+            stripe_service = None
+            firebase_integration = None
+            
+            try:
+                from payments.stripe_service import StripeService
+                from payments.firebase_integration import FirebasePaymentIntegration
+                
+                stripe_service = StripeService()
+                firebase_integration = FirebasePaymentIntegration()
+            except Exception as e:
+                logging.warning(f"Billing integration not available: {e}")
+            
+            _usage_tracker = UsageTracker(
+                redis_client=redis_client,
+                stripe_service=stripe_service,
+                firebase_integration=firebase_integration
+            )
+            logging.info("Usage tracker initialized successfully")
+        except Exception as e:
+            logging.error(f"Failed to initialize usage tracker: {e}")
+            return None
+    
+    return _usage_tracker
+
+async def track_research_request(
+    user_id: str,
+    request_type: str = "research",
+    metadata: Optional[Dict[str, Any]] = None,
+    session_id: Optional[str] = None,
+    request_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Track a research request with quota enforcement.
+    
+    Args:
+        user_id: User ID
+        request_type: Type of research request
+        metadata: Additional metadata
+        session_id: Session ID for grouping
+        request_id: Request ID for tracing
+        
+    Returns:
+        Tracking result with quota status
+    """
+    if not ANALYTICS_AVAILABLE:
+        return {"success": True, "message": "Analytics not available"}
+    
+    usage_tracker = get_usage_tracker()
+    if not usage_tracker:
+        return {"success": True, "message": "Usage tracker not available"}
+    
+    try:
+        result = await usage_tracker.track_usage(
+            user_id=user_id,
+            usage_type=UsageType.RESEARCH_REQUEST,
+            amount=1,
+            metadata={
+                "request_type": request_type,
+                **(metadata or {})
+            },
+            session_id=session_id,
+            request_id=request_id,
+            check_quota=True
+        )
+        
+        return result
+        
+    except Exception as e:
+        logging.error(f"Error tracking research request: {e}")
+        return {"success": True, "error": str(e)}
+
+async def track_api_call(
+    user_id: str,
+    api_endpoint: str,
+    method: str = "POST",
+    metadata: Optional[Dict[str, Any]] = None,
+    session_id: Optional[str] = None,
+    request_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Track an API call with quota enforcement.
+    
+    Args:
+        user_id: User ID
+        api_endpoint: API endpoint called
+        method: HTTP method
+        metadata: Additional metadata
+        session_id: Session ID for grouping
+        request_id: Request ID for tracing
+        
+    Returns:
+        Tracking result with quota status
+    """
+    if not ANALYTICS_AVAILABLE:
+        return {"success": True, "message": "Analytics not available"}
+    
+    usage_tracker = get_usage_tracker()
+    if not usage_tracker:
+        return {"success": True, "message": "Usage tracker not available"}
+    
+    try:
+        result = await usage_tracker.track_usage(
+            user_id=user_id,
+            usage_type=UsageType.API_CALL,
+            amount=1,
+            metadata={
+                "api_endpoint": api_endpoint,
+                "method": method,
+                **(metadata or {})
+            },
+            session_id=session_id,
+            request_id=request_id,
+            check_quota=True
+        )
+        
+        return result
+        
+    except Exception as e:
+        logging.error(f"Error tracking API call: {e}")
+        return {"success": True, "error": str(e)}
+
+async def track_token_usage(
+    user_id: str,
+    model_name: str,
+    tokens_used: int,
+    operation: str = "completion",
+    metadata: Optional[Dict[str, Any]] = None,
+    session_id: Optional[str] = None,
+    request_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Track token usage with quota enforcement.
+    
+    Args:
+        user_id: User ID
+        model_name: Name of the model used
+        tokens_used: Number of tokens used
+        operation: Type of operation (completion, embedding, etc.)
+        metadata: Additional metadata
+        session_id: Session ID for grouping
+        request_id: Request ID for tracing
+        
+    Returns:
+        Tracking result with quota status
+    """
+    if not ANALYTICS_AVAILABLE:
+        return {"success": True, "message": "Analytics not available"}
+    
+    usage_tracker = get_usage_tracker()
+    if not usage_tracker:
+        return {"success": True, "message": "Usage tracker not available"}
+    
+    try:
+        result = await usage_tracker.track_usage(
+            user_id=user_id,
+            usage_type=UsageType.TOKEN_USAGE,
+            amount=tokens_used,
+            metadata={
+                "model_name": model_name,
+                "operation": operation,
+                **(metadata or {})
+            },
+            session_id=session_id,
+            request_id=request_id,
+            check_quota=True
+        )
+        
+        return result
+        
+    except Exception as e:
+        logging.error(f"Error tracking token usage: {e}")
+        return {"success": True, "error": str(e)}
+
+async def track_mcp_call(
+    user_id: str,
+    server_name: str,
+    tool_name: str,
+    metadata: Optional[Dict[str, Any]] = None,
+    session_id: Optional[str] = None,
+    request_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Track MCP server call with quota enforcement.
+    
+    Args:
+        user_id: User ID
+        server_name: Name of MCP server
+        tool_name: Name of tool called
+        metadata: Additional metadata
+        session_id: Session ID for grouping
+        request_id: Request ID for tracing
+        
+    Returns:
+        Tracking result with quota status
+    """
+    if not ANALYTICS_AVAILABLE:
+        return {"success": True, "message": "Analytics not available"}
+    
+    usage_tracker = get_usage_tracker()
+    if not usage_tracker:
+        return {"success": True, "message": "Usage tracker not available"}
+    
+    try:
+        result = await usage_tracker.track_usage(
+            user_id=user_id,
+            usage_type=UsageType.MCP_CALL,
+            amount=1,
+            metadata={
+                "server_name": server_name,
+                "tool_name": tool_name,
+                **(metadata or {})
+            },
+            session_id=session_id,
+            request_id=request_id,
+            check_quota=True
+        )
+        
+        return result
+        
+    except Exception as e:
+        logging.error(f"Error tracking MCP call: {e}")
+        return {"success": True, "error": str(e)}
+
+async def track_rag_query(
+    user_id: str,
+    query_type: str = "context_retrieval",
+    results_count: int = 0,
+    metadata: Optional[Dict[str, Any]] = None,
+    session_id: Optional[str] = None,
+    request_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Track RAG query with quota enforcement.
+    
+    Args:
+        user_id: User ID
+        query_type: Type of RAG query
+        results_count: Number of results returned
+        metadata: Additional metadata
+        session_id: Session ID for grouping
+        request_id: Request ID for tracing
+        
+    Returns:
+        Tracking result with quota status
+    """
+    if not ANALYTICS_AVAILABLE:
+        return {"success": True, "message": "Analytics not available"}
+    
+    usage_tracker = get_usage_tracker()
+    if not usage_tracker:
+        return {"success": True, "message": "Usage tracker not available"}
+    
+    try:
+        result = await usage_tracker.track_usage(
+            user_id=user_id,
+            usage_type=UsageType.RAG_QUERY,
+            amount=1,
+            metadata={
+                "query_type": query_type,
+                "results_count": results_count,
+                **(metadata or {})
+            },
+            session_id=session_id,
+            request_id=request_id,
+            check_quota=True
+        )
+        
+        return result
+        
+    except Exception as e:
+        logging.error(f"Error tracking RAG query: {e}")
+        return {"success": True, "error": str(e)}
+
+async def check_usage_quota(
+    user_id: str,
+    usage_type: UsageType,
+    amount: int = 1
+) -> Tuple[bool, str]:
+    """
+    Check if user can perform an operation within quota limits.
+    
+    Args:
+        user_id: User ID
+        usage_type: Type of usage to check
+        amount: Amount of usage to check
+        
+    Returns:
+        Tuple of (allowed, message)
+    """
+    if not ANALYTICS_AVAILABLE:
+        return True, "Analytics not available"
+    
+    usage_tracker = get_usage_tracker()
+    if not usage_tracker:
+        return True, "Usage tracker not available"
+    
+    try:
+        allowed, status, details = await usage_tracker.quota_enforcer.check_quota(
+            user_id=user_id,
+            usage_type=usage_type,
+            amount=amount
+        )
+        
+        message = details.get("message", f"Quota check: {status.value}")
+        return allowed, message
+        
+    except Exception as e:
+        logging.error(f"Error checking usage quota: {e}")
+        return True, f"Error checking quota: {str(e)}"
+
+async def get_user_usage_summary(
+    user_id: str,
+    hours: int = 24
+) -> Dict[str, Any]:
+    """
+    Get usage summary for a user.
+    
+    Args:
+        user_id: User ID
+        hours: Number of hours to look back
+        
+    Returns:
+        Usage summary
+    """
+    if not ANALYTICS_AVAILABLE:
+        return {"error": "Analytics not available"}
+    
+    usage_tracker = get_usage_tracker()
+    if not usage_tracker:
+        return {"error": "Usage tracker not available"}
+    
+    try:
+        end_time = datetime.now()
+        start_time = end_time - timedelta(hours=hours)
+        
+        summary = await usage_tracker.get_usage_summary(user_id, start_time, end_time)
+        return asdict(summary)
+        
+    except Exception as e:
+        logging.error(f"Error getting usage summary: {e}")
+        return {"error": str(e)}
+
+def get_usage_tracker_stats() -> Dict[str, Any]:
+    """Get usage tracker statistics."""
+    if not ANALYTICS_AVAILABLE:
+        return {"status": "not_available", "error": "Analytics system not installed"}
+    
+    usage_tracker = get_usage_tracker()
+    if not usage_tracker:
+        return {"status": "not_initialized", "error": "Usage tracker not initialized"}
+    
+    try:
+        return usage_tracker.get_tracker_stats()
+    except Exception as e:
+        logging.error(f"Error getting usage tracker stats: {e}")
+        return {"status": "error", "error": str(e)}
+
+
+##########################
 # Model Provider Native Websearch Utils
 ##########################
 def anthropic_websearch_called(response):
@@ -766,6 +1149,7 @@ async def get_all_tools(config: RunnableConfig) -> list[BaseTool]:
     tools.extend(mcp_tools)
     
     return tools
+
 
 
 
