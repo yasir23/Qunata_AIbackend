@@ -16,7 +16,7 @@ auth = Auth()
 # for every request. This will determine whether the request is allowed or not
 @auth.authenticate
 async def get_current_user(authorization: str | None) -> Auth.types.MinimalUserDict:
-    """Check if the user's JWT token is valid using Supabase."""
+    """Check if the user's JWT token is valid using Firebase Authentication."""
 
     # Ensure we have authorization header
     if not authorization:
@@ -33,35 +33,49 @@ async def get_current_user(authorization: str | None) -> Auth.types.MinimalUserD
             status_code=401, detail="Invalid authorization header format"
         )
 
-    # Ensure Supabase client is initialized
-    if not supabase:
+    # Ensure Firebase service is initialized
+    if not firebase_service.is_initialized():
         raise Auth.exceptions.HTTPException(
-            status_code=500, detail="Supabase client not initialized"
+            status_code=500, detail="Firebase authentication service not initialized"
         )
 
     try:
-        # Verify the JWT token with Supabase using asyncio.to_thread to avoid blocking
-        # This will decode and verify the JWT token in a separate thread
-        async def verify_token() -> dict[str, Any]:
-            response = await asyncio.to_thread(supabase.auth.get_user, token)
-            return response
+        # Verify the Firebase ID token
+        user_info = await firebase_service.verify_token(token)
 
-        response = await verify_token()
-        user = response.user
-
-        if not user:
+        if not user_info:
             raise Auth.exceptions.HTTPException(
                 status_code=401, detail="Invalid token or user not found"
             )
 
-        # Return user info if valid
-        return {
-            "identity": user.id,
+        # Store/update user profile in Firestore (async, don't block on this)
+        profile_data = {
+            'email': user_info.get('email'),
+            'name': user_info.get('name'),
+            'picture': user_info.get('picture'),
+            'email_verified': user_info.get('email_verified', False),
+            'provider_data': user_info.get('provider_data', []),
+            'last_login': None  # Will be set to SERVER_TIMESTAMP in Firestore
         }
+        
+        # Store profile asynchronously (don't block on this)
+        asyncio.create_task(
+            firebase_service.store_user_profile(user_info['uid'], profile_data)
+        )
+
+        # Return user info compatible with LangGraph Auth
+        return {
+            "identity": user_info['uid'],
+        }
+        
+    except Auth.exceptions.HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
-        # Handle any errors from Supabase
+        # Handle any other errors from Firebase
+        logger.error(f"Firebase authentication error: {e}")
         raise Auth.exceptions.HTTPException(
-            status_code=401, detail=f"Authentication error: {str(e)}"
+            status_code=401, detail=f"Authentication failed: {str(e)}"
         )
 
 
@@ -150,3 +164,4 @@ async def authorize_store(ctx: Auth.types.AuthContext, value: dict):
     # The "namespace" field for each store item is a tuple you can think of as the directory of an item.
     namespace: tuple = value["namespace"]
     assert namespace[0] == ctx.user.identity, "Not authorized"
+
