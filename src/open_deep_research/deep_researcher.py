@@ -17,6 +17,114 @@ from ..middleware.usage_tracker import record_token_usage
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+async def store_research_in_rag(
+    user_id: str,
+    research_brief: str,
+    final_report: str,
+    findings: str,
+    config: RunnableConfig
+) -> bool:
+    """
+    Store research results in the RAG vector store for future retrieval.
+    
+    Args:
+        user_id: User ID for access control
+        research_brief: The research brief/topic
+        final_report: The final research report
+        findings: Raw research findings
+        config: Runnable configuration
+        
+    Returns:
+        True if successfully stored, False otherwise
+    """
+    try:
+        # Check if user has RAG access based on subscription
+        subscription_info = await get_user_subscription_info(user_id)
+        if not subscription_info.features.advanced_rag:
+            logger.info(f"User {user_id} does not have advanced RAG access, skipping storage")
+            return False
+        
+        # Initialize RAG vector store
+        vector_store = VectorStore()
+        
+        # Extract sources from findings (simplified approach)
+        sources = []
+        if "Source:" in findings:
+            # Extract source URLs from findings
+            import re
+            source_pattern = r'Source:\s*(https?://[^\s]+)'
+            sources = re.findall(source_pattern, findings)
+        
+        # Store the research result
+        document_id = await vector_store.add_research_result(
+            research_topic=research_brief,
+            research_content=final_report,
+            sources=sources,
+            user_id=user_id,
+            research_type="deep_research"
+        )
+        
+        logger.info(f"Stored research result in RAG system: {document_id} for user {user_id}")
+        
+        # Record RAG usage for tracking
+        configurable = Configuration.from_runnable_config(config)
+        if hasattr(configurable, 'user_id') and configurable.user_id:
+            await record_token_usage(
+                user_id=user_id,
+                tokens=len(final_report.split()),  # Approximate token count
+                model="rag_storage",
+                endpoint="/research/store"
+            )
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error storing research in RAG system: {e}")
+        return False
+
+async def get_rag_enhanced_context(
+    query: str,
+    user_id: Optional[str] = None,
+    max_context_length: int = 2000
+) -> str:
+    """
+    Get RAG-enhanced context for research queries.
+    
+    Args:
+        query: Search query
+        user_id: User ID for access control
+        max_context_length: Maximum context length
+        
+    Returns:
+        Relevant context string
+    """
+    if not user_id:
+        return ""
+    
+    try:
+        # Check if user has RAG access
+        subscription_info = await get_user_subscription_info(user_id)
+        if not subscription_info.features.advanced_rag:
+            logger.info(f"User {user_id} does not have advanced RAG access")
+            return ""
+        
+        # Initialize RAG vector store
+        vector_store = VectorStore()
+        
+        # Get relevant context
+        context = await vector_store.get_relevant_context(
+            query=query,
+            user_id=user_id,
+            max_context_length=max_context_length,
+            research_type="deep_research"
+        )
+        
+        return context
+        
+    except Exception as e:
+        logger.error(f"Error getting RAG context: {e}")
+        return ""
 from open_deep_research.state import (
     AgentState,
     AgentInputState,
@@ -427,5 +535,6 @@ deep_researcher_builder.add_edge("research_supervisor", "final_report_generation
 deep_researcher_builder.add_edge("final_report_generation", END)
 
 deep_researcher = deep_researcher_builder.compile()
+
 
 
