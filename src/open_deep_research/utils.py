@@ -28,6 +28,14 @@ except ImportError:
     RAG_AVAILABLE = False
     logging.warning("RAG system not available - install chromadb and dependencies")
 
+# Analytics and usage tracking imports
+try:
+    from analytics.usage_tracker import UsageTracker, UsageType, QuotaEnforcer
+    ANALYTICS_AVAILABLE = True
+except ImportError:
+    ANALYTICS_AVAILABLE = False
+    logging.warning("Analytics system not available - install redis and dependencies")
+
 
 ##########################
 # Tavily Search Tool Utils
@@ -758,5 +766,6 @@ async def get_all_tools(config: RunnableConfig) -> list[BaseTool]:
     tools.extend(mcp_tools)
     
     return tools
+
 
 
