@@ -37,7 +37,9 @@ from open_deep_research.utils import (
     anthropic_websearch_called,
     remove_up_to_last_ai_message,
     get_api_key_for_model,
-    get_notes_from_tool_calls
+    get_notes_from_tool_calls,
+    get_research_context,
+    get_rag_engine
 )
 
 # Initialize a configurable model that we will use throughout the agent
