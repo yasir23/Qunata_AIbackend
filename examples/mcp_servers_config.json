@@ -1,5 +1,5 @@
 {
-  "description": "Example MCP server configurations for Reddit and YouTube data extraction",
+  "description": "Example MCP server configurations for Reddit, YouTube, and GitHub data extraction",
   "configurations": {
     "reddit_only": {
       "description": "Configuration for Reddit data extraction only",
@@ -17,6 +17,14 @@
         "auth_required": false
       }
     },
+    "github_only": {
+      "description": "Configuration for GitHub data extraction only",
+      "mcp_config": {
+        "url": "http://localhost:8003/mcp",
+        "tools": ["get_repository_issues", "get_issue_comments", "search_repositories", "get_repository_info", "search_issues"],
+        "auth_required": false
+      }
+    },
     "reddit_and_youtube": {
       "description": "Configuration for both Reddit and YouTube data extraction",
       "note": "This configuration uses MultiServerMCPClient format for multiple servers",
@@ -27,6 +35,24 @@
         },
         "youtube": {
           "url": "http://localhost:8002/mcp", 
+          "transport": "streamable_http"
+        }
+      }
+    },
+    "all_servers": {
+      "description": "Configuration for Reddit, YouTube, and GitHub data extraction",
+      "note": "This configuration uses MultiServerMCPClient format for all three servers",
+      "mcp_server_config": {
+        "reddit": {
+          "url": "http://localhost:8001/mcp",
+          "transport": "streamable_http"
+        },
+        "youtube": {
+          "url": "http://localhost:8002/mcp", 
+          "transport": "streamable_http"
+        },
+        "github": {
+          "url": "http://localhost:8003/mcp",
           "transport": "streamable_http"
         }
       }
@@ -46,7 +72,7 @@
     "programmatic_usage": {
       "description": "How to use MCP servers programmatically",
       "example_code": {
-        "python": "from langchain_mcp_adapters.client import MultiServerMCPClient\n\n# Configure multiple MCP servers\nclient = MultiServerMCPClient({\n    'reddit': {\n        'url': 'http://localhost:8001/mcp',\n        'transport': 'streamable_http'\n    },\n    'youtube': {\n        'url': 'http://localhost:8002/mcp',\n        'transport': 'streamable_http'\n    }\n})\n\n# Get all available tools\ntools = await client.get_tools()\n\n# Use with LangGraph agent\nfrom langgraph.prebuilt import create_react_agent\nagent = create_react_agent('anthropic:claude-3-5-sonnet-latest', tools)"
+        "python": "from langchain_mcp_adapters.client import MultiServerMCPClient\n\n# Configure multiple MCP servers\nclient = MultiServerMCPClient({\n    'reddit': {\n        'url': 'http://localhost:8001/mcp',\n        'transport': 'streamable_http'\n    },\n    'youtube': {\n        'url': 'http://localhost:8002/mcp',\n        'transport': 'streamable_http'\n    },\n    'github': {\n        'url': 'http://localhost:8003/mcp',\n        'transport': 'streamable_http'\n    }\n})\n\n# Get all available tools\ntools = await client.get_tools()\n\n# Use with LangGraph agent\nfrom langgraph.prebuilt import create_react_agent\nagent = create_react_agent('anthropic:claude-3-5-sonnet-latest', tools)"
       }
     }
   },
@@ -111,13 +137,69 @@
           }
         }
       ]
+    },
+    "github_server": {
+      "port": 8003,
+      "transport": "streamable-http",
+      "tools": [
+        {
+          "name": "get_repository_issues",
+          "description": "Fetch issues from a specific GitHub repository",
+          "parameters": {
+            "owner": "Repository owner (username or organization)",
+            "repo": "Repository name",
+            "state": "Issue state - 'open', 'closed', or 'all' (default: 'open')",
+            "limit": "Number of issues to fetch (default: 20, max: 100)",
+            "sort": "Sort by - 'created', 'updated', 'comments' (default: 'created')",
+            "direction": "Sort direction - 'asc' or 'desc' (default: 'desc')"
+          }
+        },
+        {
+          "name": "get_issue_comments",
+          "description": "Fetch comments from a specific GitHub issue",
+          "parameters": {
+            "owner": "Repository owner (username or organization)",
+            "repo": "Repository name",
+            "issue_number": "Issue number",
+            "limit": "Number of comments to fetch (default: 30, max: 100)"
+          }
+        },
+        {
+          "name": "search_repositories",
+          "description": "Search for GitHub repositories",
+          "parameters": {
+            "query": "Search query string",
+            "sort": "Sort by - 'stars', 'forks', 'help-wanted-issues', 'updated' (default: 'stars')",
+            "order": "Sort order - 'asc' or 'desc' (default: 'desc')",
+            "limit": "Number of repositories to return (default: 20, max: 100)"
+          }
+        },
+        {
+          "name": "get_repository_info",
+          "description": "Get detailed information about a specific GitHub repository",
+          "parameters": {
+            "owner": "Repository owner (username or organization)",
+            "repo": "Repository name"
+          }
+        },
+        {
+          "name": "search_issues",
+          "description": "Search for GitHub issues across all repositories",
+          "parameters": {
+            "query": "Search query string (can include qualifiers like 'repo:owner/name', 'state:open', 'label:bug')",
+            "sort": "Sort by - 'created', 'updated', 'comments' (default: 'created')",
+            "order": "Sort order - 'asc' or 'desc' (default: 'desc')",
+            "limit": "Number of issues to return (default: 20, max: 100)"
+          }
+        }
+      ]
     }
   },
   "troubleshooting": {
     "common_issues": [
       {
         "issue": "Server connection failed",
-        "solution": "Ensure the MCP servers are running on the correct ports (8001 for Reddit, 8002 for YouTube)"
+        "solution": "Ensure the MCP servers are running on the correct ports (8001 for Reddit, 8002 for YouTube, 8003 for GitHub)"
       },
       {
         "issue": "API authentication errors",
@@ -134,3 +216,7 @@
     ]
   }
 }
+
+
+
+
