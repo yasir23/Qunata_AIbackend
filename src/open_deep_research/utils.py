@@ -311,6 +311,186 @@ def get_notes_from_tool_calls(messages: list[MessageLikeRepresentation]):
 
 
 ##########################
+# RAG-Enhanced Search Tools
+##########################
+
+# Global RAG engine instance
+_rag_engine = None
+
+def get_rag_engine() -> Optional['RetrievalEngine']:
+    """Get or create the global RAG engine instance."""
+    global _rag_engine
+    if not RAG_AVAILABLE:
+        return None
+    
+    if _rag_engine is None:
+        try:
+            _rag_engine = RetrievalEngine()
+            logging.info("RAG engine initialized successfully")
+        except Exception as e:
+            logging.error(f"Failed to initialize RAG engine: {e}")
+            return None
+    
+    return _rag_engine
+
+@tool(description="Enhanced search with RAG context from historical research, GitHub issues, and social media insights")
+async def rag_enhanced_search(
+    queries: List[str],
+    max_results: Annotated[int, InjectedToolArg] = 5,
+    include_context: Annotated[bool, InjectedToolArg] = True,
+    context_sources: Annotated[List[str], InjectedToolArg] = ["reddit", "github", "youtube"],
+    config: RunnableConfig = None
+) -> str:
+    """
+    Enhanced search that combines web search with RAG context from MCP servers.
+    
+    Args:
+        queries: List of search queries
+        max_results: Maximum number of web search results
+        include_context: Whether to include RAG context
+        context_sources: Sources to search for context (reddit, github, youtube)
+        
+    Returns:
+        Formatted string with web search results and relevant context
+    """
+    try:
+        # Perform regular web search
+        web_results = await tavily_search(queries, max_results, config=config)
+        
+        if not include_context or not RAG_AVAILABLE:
+            return web_results
+        
+        # Get RAG engine
+        rag_engine = get_rag_engine()
+        if not rag_engine:
+            return web_results
+        
+        # Enhance queries with RAG context
+        enhanced_context = []
+        for query in queries:
+            try:
+                context_result = await rag_engine.enhance_query_with_context(
+                    query=query,
+                    sources=context_sources,
+                    max_context_items=5
+                )
+                
+                if context_result.get("context"):
+                    enhanced_context.append({
+                        "query": query,
+                        "context": context_result["context"],
+                        "context_summary": context_result.get("context_summary", ""),
+                        "sources_used": context_result.get("sources_used", [])
+                    })
+            except Exception as e:
+                logging.error(f"Error getting RAG context for query '{query}': {e}")
+                continue
+        
+        # Format combined results
+        if enhanced_context:
+            formatted_output = web_results + "\n\n" + "=" * 80 + "\n"
+            formatted_output += "## 🧠 RELEVANT CONTEXT FROM HISTORICAL RESEARCH\n\n"
+            
+            for ctx in enhanced_context:
+                formatted_output += f"### Query: {ctx['query']}\n"
+                formatted_output += f"**Sources:** {', '.join(ctx['sources_used'])}\n"
+                formatted_output += f"**Summary:** {ctx['context_summary']}\n\n"
+                
+                for i, item in enumerate(ctx['context'][:3], 1):  # Show top 3 context items
+                    metadata = item.get('metadata', {})
+                    content = item.get('content', '')[:300] + "..." if len(item.get('content', '')) > 300 else item.get('content', '')
+                    
+                    formatted_output += f"**Context {i}** (Similarity: {item.get('similarity_score', 0):.2f})\n"
+                    formatted_output += f"Source: {metadata.get('source', 'unknown')} | Type: {metadata.get('type', 'unknown')}\n"
+                    
+                    if metadata.get('title'):
+                        formatted_output += f"Title: {metadata['title']}\n"
+                    if metadata.get('url'):
+                        formatted_output += f"URL: {metadata['url']}\n"
+                    
+                    formatted_output += f"Content: {content}\n"
+                    formatted_output += "---\n\n"
+            
+            return formatted_output
+        else:
+            return web_results
+            
+    except Exception as e:
+        logging.error(f"Error in RAG-enhanced search: {e}")
+        # Fallback to regular search
+        return await tavily_search(queries, max_results, config=config)
+
+async def ingest_mcp_data_to_rag(
+    mcp_data: Any,
+    source: str,
+    data_type: str = "auto"
+) -> Dict[str, Any]:
+    """
+    Ingest data from MCP servers into the RAG system.
+    
+    Args:
+        mcp_data: Data from MCP server
+        source: Source name (reddit, youtube, github)
+        data_type: Type of data (auto-detect if 'auto')
+        
+    Returns:
+        Ingestion results
+    """
+    if not RAG_AVAILABLE:
+        return {"success": False, "error": "RAG system not available"}
+    
+    rag_engine = get_rag_engine()
+    if not rag_engine:
+        return {"success": False, "error": "RAG engine not initialized"}
+    
+    try:
+        result = await rag_engine.ingest_mcp_data(mcp_data, source, data_type)
+        return result
+    except Exception as e:
+        logging.error(f"Error ingesting MCP data to RAG: {e}")
+        return {"success": False, "error": str(e)}
+
+async def get_research_context(research_brief: str) -> Dict[str, Any]:
+    """
+    Get relevant context for a research brief from the RAG system.
+    
+    Args:
+        research_brief: The research brief text
+        
+    Returns:
+        Context information for the research brief
+    """
+    if not RAG_AVAILABLE:
+        return {"context_items": [], "context_summary": "RAG system not available"}
+    
+    rag_engine = get_rag_engine()
+    if not rag_engine:
+        return {"context_items": [], "context_summary": "RAG engine not initialized"}
+    
+    try:
+        context = await rag_engine.get_context_for_research_brief(research_brief)
+        return context
+    except Exception as e:
+        logging.error(f"Error getting research context: {e}")
+        return {"context_items": [], "context_summary": f"Error: {str(e)}", "error": str(e)}
+
+def get_rag_stats() -> Dict[str, Any]:
+    """Get statistics about the RAG system."""
+    if not RAG_AVAILABLE:
+        return {"status": "not_available", "error": "RAG system not installed"}
+    
+    rag_engine = get_rag_engine()
+    if not rag_engine:
+        return {"status": "not_initialized", "error": "RAG engine not initialized"}
+    
+    try:
+        return rag_engine.get_engine_stats()
+    except Exception as e:
+        logging.error(f"Error getting RAG stats: {e}")
+        return {"status": "error", "error": str(e)}
+
+
+##########################
 # Model Provider Native Websearch Utils
 ##########################
 def anthropic_websearch_called(response):
@@ -578,4 +758,5 @@ async def get_all_tools(config: RunnableConfig) -> list[BaseTool]:
     tools.extend(mcp_tools)
     
     return tools
+
 
