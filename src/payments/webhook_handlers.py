@@ -7,7 +7,7 @@ payment processing, and user profile updates.
 
 import logging
 import asyncio
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Optional, Callable, List
 from datetime import datetime
 import stripe
 from enum import Enum
@@ -620,3 +620,4 @@ class StripeWebhookHandler:
                 for event_type, handler in self.event_handlers.items()
             }
         }
+
