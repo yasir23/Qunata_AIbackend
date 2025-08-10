@@ -2,15 +2,11 @@ import os
 import asyncio
 from langgraph_sdk import Auth
 from langgraph_sdk.auth.types import StudioUser
-from supabase import create_client, Client
 from typing import Optional, Any
+from .firebase_auth import firebase_service
+import logging
 
-supabase_url = os.environ.get("SUPABASE_URL")
-supabase_key = os.environ.get("SUPABASE_KEY")
-supabase: Optional[Client] = None
-
-if supabase_url and supabase_key:
-    supabase = create_client(supabase_url, supabase_key)
+logger = logging.getLogger(__name__)
 
 # The "Auth" object is a container that LangGraph will use to mark our authentication function
 auth = Auth()
