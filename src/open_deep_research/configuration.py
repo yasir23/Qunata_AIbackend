@@ -340,6 +340,31 @@ class Configuration(BaseModel):
             base_config.user_id = user_id
             return base_config
     
+    @staticmethod
+    def _get_tier_based_limits(tier: SubscriptionTierEnum) -> dict[str, int]:
+        """Get tier-based configuration limits."""
+        tier_limits = {
+            SubscriptionTierEnum.FREE: {
+                "max_researcher_iterations": 2,
+                "max_react_tool_calls": 3,
+                "max_tokens_per_request": 4000,
+                "max_structured_output_retries": 2
+            },
+            SubscriptionTierEnum.PRO: {
+                "max_researcher_iterations": 5,
+                "max_react_tool_calls": 10,
+                "max_tokens_per_request": 8000,
+                "max_structured_output_retries": 3
+            },
+            SubscriptionTierEnum.ENTERPRISE: {
+                "max_researcher_iterations": 10,
+                "max_react_tool_calls": 30,
+                "max_tokens_per_request": 16000,
+                "max_structured_output_retries": 5
+            }
+        }
+        return tier_limits.get(tier, tier_limits[SubscriptionTierEnum.FREE])
+
     async def validate_subscription_limits(self) -> bool:
         """Validate that current configuration respects subscription limits."""
         if not self.enforce_subscription_limits or not self.user_id:
@@ -348,13 +373,40 @@ class Configuration(BaseModel):
         try:
             # Get current subscription limits
             subscription_info = await get_user_subscription_info(self.user_id)
+            tier_limits = self._get_tier_based_limits(subscription_info.tier)
             
             # Check concurrent research units limit
-            max_allowed = subscription_info.limits.concurrent_research_units
-            if self.max_concurrent_research_units > max_allowed:
-                logger.warning(f"Configuration exceeds subscription limit: "
+            max_allowed_concurrent = subscription_info.limits.concurrent_research_units
+            if self.max_concurrent_research_units > max_allowed_concurrent:
+                logger.warning(f"Configuration exceeds concurrent research units limit: "
                              f"requested={self.max_concurrent_research_units}, "
-                             f"allowed={max_allowed}")
+                             f"allowed={max_allowed_concurrent}")
+                return False
+            
+            # Check researcher iterations limit
+            max_allowed_iterations = tier_limits["max_researcher_iterations"]
+            if self.max_researcher_iterations > max_allowed_iterations:
+                logger.warning(f"Configuration exceeds researcher iterations limit: "
+                             f"requested={self.max_researcher_iterations}, "
+                             f"allowed={max_allowed_iterations}")
+                return False
+            
+            # Check tool calls limit
+            max_allowed_tool_calls = tier_limits["max_react_tool_calls"]
+            if self.max_react_tool_calls > max_allowed_tool_calls:
+                logger.warning(f"Configuration exceeds tool calls limit: "
+                             f"requested={self.max_react_tool_calls}, "
+                             f"allowed={max_allowed_tool_calls}")
+                return False
+            
+            # Check token limits
+            max_allowed_tokens = tier_limits["max_tokens_per_request"]
+            if (self.research_model_max_tokens > max_allowed_tokens or 
+                self.final_report_model_max_tokens > max_allowed_tokens):
+                logger.warning(f"Configuration exceeds token limits: "
+                             f"research_tokens={self.research_model_max_tokens}, "
+                             f"report_tokens={self.final_report_model_max_tokens}, "
+                             f"allowed={max_allowed_tokens}")
                 return False
             
             return True
@@ -420,6 +472,7 @@ class Configuration(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+
 
 
 
