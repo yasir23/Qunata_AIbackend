@@ -137,6 +137,62 @@
           }
         }
       ]
+    },
+    "github_server": {
+      "port": 8003,
+      "transport": "streamable-http",
+      "tools": [
+        {
+          "name": "get_repository_issues",
+          "description": "Fetch issues from a specific GitHub repository",
+          "parameters": {
+            "owner": "Repository owner (username or organization)",
+            "repo": "Repository name",
+            "state": "Issue state - 'open', 'closed', or 'all' (default: 'open')",
+            "limit": "Number of issues to fetch (default: 20, max: 100)",
+            "sort": "Sort by - 'created', 'updated', 'comments' (default: 'created')",
+            "direction": "Sort direction - 'asc' or 'desc' (default: 'desc')"
+          }
+        },
+        {
+          "name": "get_issue_comments",
+          "description": "Fetch comments from a specific GitHub issue",
+          "parameters": {
+            "owner": "Repository owner (username or organization)",
+            "repo": "Repository name",
+            "issue_number": "Issue number",
+            "limit": "Number of comments to fetch (default: 30, max: 100)"
+          }
+        },
+        {
+          "name": "search_repositories",
+          "description": "Search for GitHub repositories",
+          "parameters": {
+            "query": "Search query string",
+            "sort": "Sort by - 'stars', 'forks', 'help-wanted-issues', 'updated' (default: 'stars')",
+            "order": "Sort order - 'asc' or 'desc' (default: 'desc')",
+            "limit": "Number of repositories to return (default: 20, max: 100)"
+          }
+        },
+        {
+          "name": "get_repository_info",
+          "description": "Get detailed information about a specific GitHub repository",
+          "parameters": {
+            "owner": "Repository owner (username or organization)",
+            "repo": "Repository name"
+          }
+        },
+        {
+          "name": "search_issues",
+          "description": "Search for GitHub issues across all repositories",
+          "parameters": {
+            "query": "Search query string (can include qualifiers like 'repo:owner/name', 'state:open', 'label:bug')",
+            "sort": "Sort by - 'created', 'updated', 'comments' (default: 'created')",
+            "order": "Sort order - 'asc' or 'desc' (default: 'desc')",
+            "limit": "Number of issues to return (default: 20, max: 100)"
+          }
+        }
+      ]
     }
   },
   "troubleshooting": {
@@ -160,5 +216,6 @@
     ]
   }
 }
+
 
 
