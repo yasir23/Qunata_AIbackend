@@ -295,13 +295,41 @@ class Configuration(BaseModel):
                     subscription_limit
                 )
                 
+                # Apply tier-based limits for research iterations
+                tier_limits = cls._get_tier_based_limits(subscription_info.tier)
+                
+                # Limit research iterations based on subscription tier
+                base_config.max_researcher_iterations = min(
+                    base_config.max_researcher_iterations,
+                    tier_limits["max_researcher_iterations"]
+                )
+                
+                # Limit tool calls based on subscription tier
+                base_config.max_react_tool_calls = min(
+                    base_config.max_react_tool_calls,
+                    tier_limits["max_react_tool_calls"]
+                )
+                
+                # Apply token limits based on subscription tier
+                base_config.research_model_max_tokens = min(
+                    base_config.research_model_max_tokens,
+                    tier_limits["max_tokens_per_request"]
+                )
+                
+                base_config.final_report_model_max_tokens = min(
+                    base_config.final_report_model_max_tokens,
+                    tier_limits["max_tokens_per_request"]
+                )
+                
                 # Set subscription information
                 base_config.user_id = user_id
                 base_config.subscription_tier = subscription_info.tier
                 
                 logger.info(f"Applied subscription limits for user {user_id}: "
                           f"tier={subscription_info.tier.value}, "
-                          f"concurrent_units={base_config.max_concurrent_research_units}")
+                          f"concurrent_units={base_config.max_concurrent_research_units}, "
+                          f"iterations={base_config.max_researcher_iterations}, "
+                          f"tool_calls={base_config.max_react_tool_calls}")
             
             return base_config
             
@@ -392,5 +420,6 @@ class Configuration(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+
 
 
