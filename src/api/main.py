@@ -725,6 +725,364 @@ async def get_concurrent_research_limit(
             detail=f"Failed to retrieve concurrent research limit: {str(e)}"
         )
 
+# RAG system endpoints
+@app.post("/rag/search", tags=["rag"])
+@limiter.limit("30/minute")
+async def rag_similarity_search(
+    request: Request,
+    query: str,
+    k: int = 5,
+    similarity_threshold: float = 0.7,
+    authorization: Optional[str] = None
+):
+    """
+    Perform similarity search in the RAG vector store.
+    
+    Requires Pro or Enterprise subscription for advanced RAG access.
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header required"
+        )
+    
+    try:
+        # Extract user ID from authorization header
+        middleware = UsageTrackingMiddleware(None)
+        user_id = await middleware._extract_user_id(request)
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token"
+            )
+        
+        # Check if user has advanced RAG access
+        subscription_info = await get_user_subscription_info(user_id)
+        if not subscription_info.features.advanced_rag:
+            raise HTTPException(
+                status_code=403,
+                detail="Advanced RAG access requires Pro or Enterprise subscription"
+            )
+        
+        # Initialize RAG vector store
+        vector_store = VectorStore()
+        
+        # Perform similarity search
+        results = await vector_store.similarity_search(
+            query=query,
+            k=k,
+            user_id=user_id,
+            similarity_threshold=similarity_threshold
+        )
+        
+        # Convert results to response format
+        search_results = []
+        for result in results:
+            search_results.append({
+                "document_id": result.document_id,
+                "content": result.content,
+                "metadata": result.metadata,
+                "similarity_score": result.similarity_score,
+                "chunk_index": result.chunk_index
+            })
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "query": query,
+            "results": search_results,
+            "total_results": len(search_results),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"RAG search error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to perform RAG search: {str(e)}"
+        )
+
+@app.get("/rag/context", tags=["rag"])
+@limiter.limit("30/minute")
+async def get_rag_context(
+    request: Request,
+    query: str,
+    max_context_length: int = 4000,
+    research_type: Optional[str] = None,
+    authorization: Optional[str] = None
+):
+    """
+    Get relevant context from previous research for a query.
+    
+    Requires Pro or Enterprise subscription for advanced RAG access.
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header required"
+        )
+    
+    try:
+        # Extract user ID from authorization header
+        middleware = UsageTrackingMiddleware(None)
+        user_id = await middleware._extract_user_id(request)
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token"
+            )
+        
+        # Check if user has advanced RAG access
+        subscription_info = await get_user_subscription_info(user_id)
+        if not subscription_info.features.advanced_rag:
+            raise HTTPException(
+                status_code=403,
+                detail="Advanced RAG access requires Pro or Enterprise subscription"
+            )
+        
+        # Initialize RAG vector store
+        vector_store = VectorStore()
+        
+        # Get relevant context
+        context = await vector_store.get_relevant_context(
+            query=query,
+            user_id=user_id,
+            max_context_length=max_context_length,
+            research_type=research_type
+        )
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "query": query,
+            "context": context,
+            "context_length": len(context),
+            "research_type": research_type,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"RAG context error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve RAG context: {str(e)}"
+        )
+
+@app.post("/rag/store", tags=["rag"])
+@limiter.limit("10/minute")
+async def store_research_document(
+    request: Request,
+    research_topic: str,
+    research_content: str,
+    sources: List[str] = [],
+    research_type: str = "general",
+    authorization: Optional[str] = None
+):
+    """
+    Store research results in the RAG vector store.
+    
+    Requires Pro or Enterprise subscription for advanced RAG access.
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header required"
+        )
+    
+    try:
+        # Extract user ID from authorization header
+        middleware = UsageTrackingMiddleware(None)
+        user_id = await middleware._extract_user_id(request)
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token"
+            )
+        
+        # Check if user has advanced RAG access
+        subscription_info = await get_user_subscription_info(user_id)
+        if not subscription_info.features.advanced_rag:
+            raise HTTPException(
+                status_code=403,
+                detail="Advanced RAG access requires Pro or Enterprise subscription"
+            )
+        
+        # Initialize RAG vector store
+        vector_store = VectorStore()
+        
+        # Store research result
+        document_id = await vector_store.add_research_result(
+            research_topic=research_topic,
+            research_content=research_content,
+            sources=sources,
+            user_id=user_id,
+            research_type=research_type
+        )
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "document_id": document_id,
+            "research_topic": research_topic,
+            "research_type": research_type,
+            "sources_count": len(sources),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"RAG store error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to store research document: {str(e)}"
+        )
+
+@app.get("/rag/documents", tags=["rag"])
+@limiter.limit("30/minute")
+async def get_user_documents(
+    request: Request,
+    limit: int = 20,
+    offset: int = 0,
+    research_type: Optional[str] = None,
+    authorization: Optional[str] = None
+):
+    """
+    Get user's stored research documents.
+    
+    Requires Pro or Enterprise subscription for advanced RAG access.
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header required"
+        )
+    
+    try:
+        # Extract user ID from authorization header
+        middleware = UsageTrackingMiddleware(None)
+        user_id = await middleware._extract_user_id(request)
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token"
+            )
+        
+        # Check if user has advanced RAG access
+        subscription_info = await get_user_subscription_info(user_id)
+        if not subscription_info.features.advanced_rag:
+            raise HTTPException(
+                status_code=403,
+                detail="Advanced RAG access requires Pro or Enterprise subscription"
+            )
+        
+        # Initialize RAG vector store
+        vector_store = VectorStore()
+        
+        # Get user documents
+        documents = await vector_store.get_user_documents(
+            user_id=user_id,
+            limit=limit,
+            offset=offset,
+            research_type=research_type
+        )
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "documents": documents,
+            "limit": limit,
+            "offset": offset,
+            "research_type": research_type,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"RAG documents error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve user documents: {str(e)}"
+        )
+
+@app.delete("/rag/documents/{document_id}", tags=["rag"])
+@limiter.limit("10/minute")
+async def delete_research_document(
+    document_id: str,
+    request: Request,
+    authorization: Optional[str] = None
+):
+    """
+    Delete a research document from the RAG vector store.
+    
+    Requires Pro or Enterprise subscription for advanced RAG access.
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization header required"
+        )
+    
+    try:
+        # Extract user ID from authorization header
+        middleware = UsageTrackingMiddleware(None)
+        user_id = await middleware._extract_user_id(request)
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired token"
+            )
+        
+        # Check if user has advanced RAG access
+        subscription_info = await get_user_subscription_info(user_id)
+        if not subscription_info.features.advanced_rag:
+            raise HTTPException(
+                status_code=403,
+                detail="Advanced RAG access requires Pro or Enterprise subscription"
+            )
+        
+        # Initialize RAG vector store
+        vector_store = VectorStore()
+        
+        # Delete document
+        success = await vector_store.delete_document(
+            document_id=document_id,
+            user_id=user_id
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail="Document not found or access denied"
+            )
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "document_id": document_id,
+            "deleted": True,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"RAG delete error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete research document: {str(e)}"
+        )
+
 # Include routers
 app.include_router(auth_router)
 app.include_router(webhook_router)
@@ -779,6 +1137,7 @@ if __name__ == "__main__":
         log_level="info" if not DEBUG else "debug",
         access_log=True,
     )
+
 
 
 
