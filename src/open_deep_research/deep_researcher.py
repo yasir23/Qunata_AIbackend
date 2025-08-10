@@ -75,6 +75,37 @@ async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Comman
 
 async def write_research_brief(state: AgentState, config: RunnableConfig)-> Command[Literal["research_supervisor"]]:
     configurable = Configuration.from_runnable_config(config)
+    
+    # Get relevant context from RAG system if user is authenticated
+    rag_context = ""
+    user_id = getattr(configurable, 'user_id', None)
+    
+    if user_id:
+        try:
+            # Check if user has RAG access based on subscription
+            subscription_info = await get_user_subscription_info(user_id)
+            if subscription_info.features.advanced_rag:
+                # Initialize RAG vector store
+                vector_store = VectorStore()
+                
+                # Extract research topic from messages for RAG search
+                messages_text = get_buffer_string(state.get("messages", []))
+                rag_context = await vector_store.get_relevant_context(
+                    query=messages_text,
+                    user_id=user_id,
+                    max_context_length=2000
+                )
+                
+                if rag_context:
+                    logger.info(f"Retrieved RAG context for user {user_id}: {len(rag_context)} characters")
+                else:
+                    logger.info(f"No relevant RAG context found for user {user_id}")
+            else:
+                logger.info(f"User {user_id} does not have advanced RAG access")
+        except Exception as e:
+            logger.error(f"Error retrieving RAG context: {e}")
+            rag_context = ""
+    
     research_model_config = {
         "model": configurable.research_model,
         "max_tokens": configurable.research_model_max_tokens,
@@ -82,14 +113,23 @@ async def write_research_brief(state: AgentState, config: RunnableConfig)-> Comm
         "tags": ["langsmith:nostream"]
     }
     research_model = configurable_model.with_structured_output(ResearchQuestion).with_retry(stop_after_attempt=configurable.max_structured_output_retries).with_config(research_model_config)
-    response = await research_model.ainvoke([HumanMessage(content=transform_messages_into_research_topic_prompt.format(
+    
+    # Enhanced prompt with RAG context
+    enhanced_prompt = transform_messages_into_research_topic_prompt.format(
         messages=get_buffer_string(state.get("messages", [])),
         date=get_today_str()
-    ))])
+    )
+    
+    if rag_context:
+        enhanced_prompt = f"{rag_context}\n\n{enhanced_prompt}\n\nNote: Use the relevant previous research above to inform your research brief, but focus on new aspects or updated information."
+    
+    response = await research_model.ainvoke([HumanMessage(content=enhanced_prompt)])
+    
     return Command(
         goto="research_supervisor", 
         update={
             "research_brief": response.research_brief,
+            "rag_context_used": bool(rag_context),
             "supervisor_messages": {
                 "type": "override",
                 "value": [
@@ -375,3 +415,4 @@ deep_researcher_builder.add_edge("research_supervisor", "final_report_generation
 deep_researcher_builder.add_edge("final_report_generation", END)
 
 deep_researcher = deep_researcher_builder.compile()
+
